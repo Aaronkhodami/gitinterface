@@ -1,0 +1,64 @@
+# ── opencode ────────────────────────────────────────────────────────────────
+.opencode/
+
+# ── Environment & Secrets ──────────────────────────────────────────────────
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+*.key
+*.pem
+*.cert
+**/secrets/
+**/credentials/
+**/tokens/
+**/vault/
+*credential*
+*token*
+*secret*
+*password*
+
+# ── OS ─────────────────────────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# ── Node / Dependencies ───────────────────────────────────────────────────
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ── Build / Dist ───────────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.min.*
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── IDE ────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ── Token / key files ──────────────────────────────────────────────────────
+tkn.txt
+*.tkn
+*.token
+*.pat
+
+# ── Temp ────────────────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+
+# ── Broken / stale assets ──────────────────────────────────────────────────
+dashboard/logo.png

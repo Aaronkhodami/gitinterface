@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./theme.js"></script>
+  <style>
+    /* ── Nav cards ── */
+    .nav-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .nav-card {
+      display: flex; flex-direction: column; gap: 6px;
+      background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px;
+      padding: 18px 16px; text-decoration: none; color: var(--text);
+      transition: box-shadow .15s, border-color .15s;
+      cursor: pointer;
+    }
+    .nav-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); border-color: var(--accent); }
+    .nav-card .nc-icon { font-size: 1.6rem; line-height: 1; color: var(--text-2); }
+    .nav-card .nc-title { font-size: .9rem; font-weight: 600; color: var(--text); }
+    .nav-card .nc-desc  { font-size: .78rem; color: var(--text-muted); }
+
+    /* ── Credentials form ── */
+    .creds-section {
+      border-top: 1px solid var(--border-3);
+      padding-top: 22px;
+      margin-top: 4px;
+    }
+    .creds-section h3 {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 4px;
+    }
+    .creds-section p {
+      font-size: .78rem;
+      color: var(--text-muted);
+      margin: 0 0 16px;
+    }
+    .creds-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .creds-grid .field { margin: 0; }
+    #credsStatus {
+      margin-top: 2px;
+      margin-bottom: 0;
+    }
+    #credsSubmitBtn { width: auto; padding: 9px 24px; }
+
+    /* ── Show-password wrapper ── */
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 38px; }
+    .pw-eye {
+      position: absolute; right: 1px; top: 1px; bottom: 1px;
+      width: 36px; border: none; background: none;
+      cursor: pointer; color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 0 7px 7px 0;
+      transition: color .12s;
+    }
+    .pw-eye:hover { color: var(--text-2); }
+  </style>
+</head>
+<body>
+  <div class="workspace-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <h2>Workspace</h2>
+      </div>
+
+      <div class="welcome-block">
+        <strong id="welcomeName">welcome admin</strong>
+      </div>
+
+      <div class="menu-list">
+        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="./autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
+        <a href="./git-data/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
+        <a href="./git-upload/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
+        <a href="./documents/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>Documents</a>
+        <a href="./git-repos/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Git Repos</a>
+        <a href="./git-log/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</a>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="signOutButton" class="secondary-button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button>
+        <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      </div>
+    </aside>
+    <main class="content-pane">
+      <section class="section-panel">
+        <div class="section-header">
+          <h2>Dashboard</h2>
+        </div>
+
+        <!-- Quick-access nav cards -->
+        <div class="nav-cards">
+          <a href="./autenticate/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></div>
+            <div class="nc-title">Authenticate GitHub</div>
+            <div class="nc-desc">Connect your GitHub token</div>
+          </a>
+          <a href="./git-data/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="nc-title">Git Download</div>
+            <div class="nc-desc">Browse &amp; download repo files</div>
+          </a>
+          <a href="./git-upload/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="nc-title">Git Upload</div>
+            <div class="nc-desc">Upload files to a repository</div>
+          </a>
+          <a href="./documents/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>
+            <div class="nc-title">Documents</div>
+            <div class="nc-desc">Create and edit CSV files</div>
+          </a>
+          <a href="./git-repos/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div>
+            <div class="nc-title">Git Repos</div>
+            <div class="nc-desc">Create, edit &amp; manage repos</div>
+          </a>
+          <a href="./git-log/index.html" class="nav-card">
+            <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="nc-title">Activity Log</div>
+            <div class="nc-desc">Recent GitHub events</div>
+          </a>
+        </div>
+
+        <!-- Change credentials -->
+        <div class="creds-section">
+          <h3>Change Login Credentials</h3>
+          <p>Updates take effect on your next sign-in. Credentials are stored locally in your browser.</p>
+          <form id="credsForm" autocomplete="off">
+            <div class="creds-grid">
+              <div class="field">
+                <label for="newUsername">New username</label>
+                <input id="newUsername" type="text" placeholder="leave blank to keep current" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="newPassword">New password</label>
+                <div class="pw-wrap">
+                  <input id="newPassword" type="password" placeholder="leave blank to keep current" autocomplete="new-password" />
+                  <button type="button" class="pw-eye" aria-label="Show password" data-target="newPassword">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="confirmPassword">Confirm password</label>
+                <div class="pw-wrap">
+                  <input id="confirmPassword" type="password" placeholder="repeat new password" autocomplete="new-password" />
+                  <button type="button" class="pw-eye" aria-label="Show password" data-target="confirmPassword">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+                <span id="pwMatchHint" style="font-size:.75rem; margin-top:3px; display:none;"></span>
+              </div>
+            </div>
+            <button type="submit" id="credsSubmitBtn" class="primary-button">Save credentials</button>
+            <div id="credsStatus" class="alert"></div>
+          </form>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    if (!sessionUserRaw) {
+      location.href = "../index.html";
+    }
+    const welcomeName = document.getElementById("welcomeName");
+    const sessionUser = sessionUserRaw ? JSON.parse(sessionUserRaw) : null;
+    welcomeName.textContent = `welcome ${sessionUser?.username || "admin"}`;
+
+    document.getElementById("signOutButton").addEventListener("click", () => {
+      sessionStorage.removeItem("portable-user");
+      location.href = "../index.html";
+    });
+
+    // ── Change credentials ─────────────────────────────────────────────────
+    const CREDS_KEY = "portable-credentials";
+
+    // Pre-fill username from session
+    document.getElementById("newUsername").value = sessionUser?.username || "";
+
+    document.getElementById("credsForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const statusEl = document.getElementById("credsStatus");
+      const newUser = document.getElementById("newUsername").value.trim();
+      const newPass = document.getElementById("newPassword").value;
+      const confirmPass = document.getElementById("confirmPassword").value;
+
+      // Validation
+      if (!newUser) {
+        statusEl.textContent = "Username cannot be empty.";
+        statusEl.className = "alert error show";
+        return;
+      }
+      if (newPass !== confirmPass) {
+        statusEl.textContent = "Passwords do not match.";
+        statusEl.className = "alert error show";
+        return;
+      }
+
+      // Load existing saved creds to preserve password if not changing
+      const existing = JSON.parse(localStorage.getItem(CREDS_KEY) || "null");
+      const basePass = existing?.password || window.PortableDB?.users?.[0]?.password || "";
+      const finalPass = newPass || basePass;
+
+      if (!finalPass) {
+        statusEl.textContent = "Password cannot be empty.";
+        statusEl.className = "alert error show";
+        return;
+      }
+
+      localStorage.setItem(CREDS_KEY, JSON.stringify({ username: newUser, password: finalPass }));
+
+      // Update session username
+      const updatedSession = { ...sessionUser, username: newUser, displayName: newUser };
+      sessionStorage.setItem("portable-user", JSON.stringify(updatedSession));
+      document.getElementById("welcomeName").textContent = `welcome ${newUser}`;
+
+      // Clear password fields
+      document.getElementById("newPassword").value = "";
+      document.getElementById("confirmPassword").value = "";
+
+      statusEl.textContent = "Credentials saved. Use them on your next sign-in.";
+      statusEl.className = "alert success show";
+      setTimeout(() => { statusEl.className = "alert"; }, 4000);
+    });
+
+    // ── Live password-match indicator ─────────────────────────────────────
+    function checkPasswordMatch() {
+      const hint = document.getElementById("pwMatchHint");
+      const p1 = document.getElementById("newPassword").value;
+      const p2 = document.getElementById("confirmPassword").value;
+      if (!p2) { hint.style.display = "none"; return; }
+      if (p1 === p2) {
+        hint.textContent = "✓ Passwords match";
+        hint.style.color = "var(--success-text, #1f6a3c)";
+      } else {
+        hint.textContent = "✕ Passwords do not match";
+        hint.style.color = "var(--error-text, #9f3a2f)";
+      }
+      hint.style.display = "block";
+    }
+    document.getElementById("newPassword").addEventListener("input", checkPasswordMatch);
+    document.getElementById("confirmPassword").addEventListener("input", checkPasswordMatch);
+
+    // ── Show-password toggles ─────────────────────────────────────────────
+    document.querySelectorAll(".pw-eye").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.target);
+        const isHidden = input.type === "password";
+        input.type = isHidden ? "text" : "password";
+        btn.innerHTML = isHidden
+          ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        btn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
+      });
+    });
+
+  </script>
+</body>
+</html>

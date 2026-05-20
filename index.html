@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portable Workspace Sign In</title>
+  <link rel="stylesheet" href="./dashboard/styles.css" />
+  <script src="./dashboard/theme.js"></script>
+</head>
+<body>
+  <button id="themeToggleBtn" class="floating-theme-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+  <main class="auth-shell">
+    <div class="auth-layout">
+      <section class="auth-card">
+        <img src="https://www.jyu.fi/themes/custom/jyu/images/logos/jyu-logo-en.svg" alt="University of Jyväskylä" class="auth-logo" />
+        <h2 id="appTitle">welcome, please log in!!</h2>
+
+        <div id="loginAlert" class="alert error"></div>
+
+        <form id="loginForm" class="auth-form">
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" autocomplete="username" required />
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+
+          <button type="submit" class="primary-button">Open Dashboard</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p class="loading-text">Please wait while repos are loading...</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="./dashboard/db.js"></script>
+  <script>
+    const loginForm = document.getElementById("loginForm");
+    const loginAlert = document.getElementById("loginAlert");
+    const loadingOverlay = document.getElementById("loadingOverlay");
+
+    function showError(message) {
+      loginAlert.textContent = message;
+      loginAlert.classList.add("show");
+    }
+
+    function clearError() {
+      loginAlert.textContent = "";
+      loginAlert.classList.remove("show");
+    }
+
+    loginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      clearError();
+
+      const username = loginForm.username.value.trim();
+      const password = loginForm.password.value;
+
+      // Check localStorage override first, then fall back to db.js
+      const savedCreds = JSON.parse(localStorage.getItem("portable-credentials") || "null");
+      let user = null;
+      if (savedCreds && username === savedCreds.username && password === savedCreds.password) {
+        user = { username: savedCreds.username, displayName: savedCreds.username, role: "Owner" };
+      } else {
+        const users = Array.isArray(window.PortableDB?.users) ? window.PortableDB.users : [];
+        user = users.find((entry) => entry.username === username && entry.password === password);
+      }
+      if (!user) {
+        showError("Wrong username or password.");
+        return;
+      }
+
+      sessionStorage.setItem("portable-user", JSON.stringify({
+        username: user.username,
+        displayName: user.displayName || user.username,
+        role: user.role || "User"
+      }));
+
+      loadingOverlay.classList.remove("hidden");
+      setTimeout(() => {
+        location.href = "./dashboard/index.html";
+      }, 3000);
+    });
+  </script>
+</body>
+</html>

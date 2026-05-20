@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Download</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="../theme.js"></script>
+  <style>
+    /* ── Repo bar ── */
+    .repo-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .repo-bar label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #444;
+      white-space: nowrap;
+    }
+    .repo-select {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      background: white;
+      min-width: 240px;
+      cursor: pointer;
+    }
+    .repo-select:focus {
+      outline: none;
+      border-color: #0d6b57;
+      box-shadow: 0 0 0 3px rgba(13,107,87,0.12);
+    }
+
+    /* ── Breadcrumb ── */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      min-height: 30px;
+      font-size: 0.9rem;
+    }
+    .bc-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      color: #0d6b57;
+      padding: 3px 6px;
+      border-radius: 5px;
+      line-height: 1.4;
+    }
+    .bc-btn:hover { background: #f0f0f0; }
+    .bc-sep { color: #bbb; padding: 0 2px; user-select: none; }
+    .bc-current { color: #111; padding: 3px 6px; }
+
+    /* ── Status ── */
+    .status-msg {
+      display: none;
+      padding: 9px 13px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+    }
+    .status-msg.show { display: block; }
+    .status-msg.info    { background: #e8f4ff; color: #1a5ca8; border: 1px solid rgba(26,92,168,0.2); }
+    .status-msg.ok      { background: #edf9f1; color: #1f6a3c; border: 1px solid rgba(31,106,60,0.22); }
+    .status-msg.bad     { background: #fff0ec; color: #9f3a2f; border: 1px solid rgba(159,58,47,0.22); }
+
+    /* ── File table ── */
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .file-table th {
+      text-align: left;
+      padding: 7px 10px;
+      border-bottom: 2px solid #e8e8e8;
+      font-size: 0.78rem;
+      color: #888;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .file-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f2f2f2;
+      vertical-align: middle;
+    }
+    .file-table tr:last-child td { border-bottom: none; }
+    .file-table tbody tr:hover td { background: #fafafa; }
+
+    .col-check { width: 36px; }
+    .col-name  { }
+    .col-size  { width: 90px; text-align: right; color: #999; white-space: nowrap; }
+    .col-act   { width: 100px; text-align: right; }
+
+    .row-name-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      color: #0d6b57;
+      padding: 0;
+      text-align: left;
+    }
+    .row-name-btn:hover { text-decoration: underline; }
+    .row-icon { margin-right: 5px; }
+
+    .save-btn {
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: #333;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .save-btn:hover { background: #f5f5f5; border-color: #aaa; }
+
+    /* ── Action bar ── */
+    .action-bar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #eee;
+      flex-wrap: wrap;
+    }
+    .action-bar.visible { display: flex; }
+    .sel-count { font-size: 0.85rem; color: #666; flex: 1; }
+
+    /* ── Loading / empty ── */
+    .loading-row, .empty-row {
+      padding: 28px 10px;
+      color: #aaa;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    /* ── Progress overlay ── */
+    .prog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.38);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .prog-box {
+      background: white;
+      border-radius: 12px;
+      padding: 30px 34px;
+      min-width: 340px;
+      box-shadow: 0 10px 36px rgba(0,0,0,0.18);
+    }
+    .prog-title { font-weight: 700; font-size: 1rem; margin-bottom: 14px; }
+    .prog-track {
+      background: #eee;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .prog-fill {
+      background: #0d6b57;
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.18s;
+    }
+    .prog-label { font-size: 0.8rem; color: #777; }
+  </style>
+</head>
+<body>
+  <div class="workspace-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <h2>Workspace</h2>
+      </div>
+
+      <div class="welcome-block">
+        <strong id="welcomeName">welcome admin</strong>
+      </div>
+
+      <div class="menu-list">
+        <a href="../index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="../autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
+        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
+        <a href="../git-upload/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
+        <a href="../documents/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>Documents</a>
+        <a href="../git-repos/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Git Repos</a>
+        <a href="../git-log/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</a>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="signOutButton" class="secondary-button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button>
+        <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      </div>
+    </aside>
+    <main class="content-pane">
+      <section class="section-panel">
+        <div class="section-header">
+          <h2>Git Download</h2>
+          <div class="section-intro">Browse repositories, navigate folders, and download files or entire folders.</div>
+        </div>
+
+        <!-- No token warning -->
+        <div id="noTokenWarning" class="alert error" style="display:none;">
+          No GitHub token found.
+          <a href="../autenticate/index.html" style="color:inherit;font-weight:600;text-decoration:underline;">Authenticate first →</a>
+        </div>
+
+        <!-- Browser panel -->
+        <div id="browserPanel" style="display:none;">
+
+          <!-- Repo selector -->
+          <div class="repo-bar">
+            <label for="repoSelect">Repository:</label>
+            <select id="repoSelect" class="repo-select">
+              <option value="">Loading repositories…</option>
+            </select>
+          </div>
+
+          <!-- Breadcrumb -->
+          <div id="breadcrumb" class="breadcrumb"></div>
+
+          <!-- Status message -->
+          <div id="statusMsg" class="status-msg"></div>
+
+          <!-- File list -->
+          <div id="fileListWrap">
+            <div class="empty-row">Select a repository to start browsing.</div>
+          </div>
+
+          <!-- Action bar (shown when items are selected) -->
+          <div class="action-bar" id="actionBar">
+            <span class="sel-count" id="selCount">0 selected</span>
+            <button class="primary-button" id="dlSelectedBtn" style="width:auto;padding:8px 18px;">↓ Download selected</button>
+            <button class="secondary-button" id="clearSelBtn" style="width:auto;padding:8px 14px;">Clear</button>
+          </div>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Progress overlay -->
+  <div class="prog-overlay" id="progOverlay" style="display:none;">
+    <div class="prog-box">
+      <div class="prog-title">Downloading files…</div>
+      <div class="prog-track">
+        <div class="prog-fill" id="progFill" style="width:0%"></div>
+      </div>
+      <div class="prog-label" id="progLabel">0 / 0</div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    // ── Session guard ──────────────────────────────────────────────────────────
+    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    if (!sessionUserRaw) location.href = "../../index.html";
+    const sessionUser = JSON.parse(sessionUserRaw || "{}");
+    document.getElementById("welcomeName").textContent = `welcome ${sessionUser.username || "admin"}`;
+
+    document.getElementById("signOutButton").addEventListener("click", () => {
+      sessionStorage.removeItem("portable-user");
+      location.href = "../../index.html";
+    });
+
+    // ── Token check ────────────────────────────────────────────────────────────
+    const TOKEN = localStorage.getItem("portable-github-token") || "";
+    if (!TOKEN) {
+      document.getElementById("noTokenWarning").style.display = "block";
+    } else {
+      document.getElementById("browserPanel").style.display = "block";
+      initRepos();
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let currentRepo  = null;   // { owner, name }
+    let currentPath  = "";     // "src/components"
+    let pathStack    = [];     // [{label, path}] history for breadcrumb back-navigation
+    let currentItems = [];     // current listing
+    let selected     = new Set();
+
+    // ── GitHub fetch helpers ───────────────────────────────────────────────────
+    async function ghJSON(url) {
+      const r = await fetch(url, {
+        headers: {
+          "Authorization": `Bearer ${TOKEN}`,
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        }
+      });
+      if (!r.ok) throw new Error(`GitHub ${r.status}: ${r.statusText}`);
+      return r.json();
+    }
+
+    async function ghRaw(url) {
+      const r = await fetch(url, {
+        headers: {
+          "Authorization": `Bearer ${TOKEN}`,
+          "Accept": "application/vnd.github.raw",
+          "X-GitHub-Api-Version": "2022-11-28"
+        }
+      });
+      if (!r.ok) throw new Error(`GitHub ${r.status}: ${r.statusText}`);
+      return r.arrayBuffer();
+    }
+
+    // ── Load repo list ─────────────────────────────────────────────────────────
+    async function initRepos() {
+      try {
+        let repos = [];
+        for (let page = 1; page <= 5; page++) {
+          const batch = await ghJSON(
+            `https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated`
+          );
+          repos = repos.concat(batch);
+          if (batch.length < 100) break;
+        }
+
+        const sel = document.getElementById("repoSelect");
+        sel.innerHTML = '<option value="">— choose a repository —</option>';
+        repos.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = JSON.stringify({ owner: r.owner.login, name: r.name });
+          opt.textContent = r.full_name;
+          sel.appendChild(opt);
+        });
+
+        sel.addEventListener("change", () => {
+          if (!sel.value) return;
+          currentRepo = JSON.parse(sel.value);
+          currentPath = "";
+          pathStack   = [];
+          selected.clear();
+          browseTo("");
+        });
+      } catch (err) {
+        setStatus(`Failed to load repositories: ${err.message}`, "bad");
+      }
+    }
+
+    // ── Browse to a path ───────────────────────────────────────────────────────
+    async function browseTo(path) {
+      if (!currentRepo) return;
+      currentPath = path;
+      selected.clear();
+      renderActionBar();
+      renderBreadcrumb();
+      setLoading();
+
+      try {
+        const url = `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`;
+        const data = await ghJSON(url);
+
+        if (!Array.isArray(data)) {
+          setStatus("Unexpected response (not a directory).", "bad");
+          return;
+        }
+
+        // dirs first, then files, alphabetical within each group
+        currentItems = data.sort((a, b) => {
+          if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        renderFileList();
+        clearStatus();
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+        document.getElementById("fileListWrap").innerHTML =
+          '<div class="empty-row">Could not load directory.</div>';
+      }
+    }
+
+    function enterFolder(item) {
+      pathStack.push({ label: item.name, path: currentPath });
+      browseTo(item.path);
+    }
+
+    function jumpToStack(index) {
+      // index -1 = repo root
+      if (index < 0) {
+        pathStack = [];
+        browseTo("");
+      } else {
+        const frame = pathStack[index];
+        pathStack   = pathStack.slice(0, index);
+        browseTo(frame.path);
+      }
+    }
+
+    // ── Breadcrumb ─────────────────────────────────────────────────────────────
+    function renderBreadcrumb() {
+      const bc = document.getElementById("breadcrumb");
+      bc.innerHTML = "";
+      if (!currentRepo) return;
+
+      const addBtn = (label, onclick) => {
+        const b = document.createElement("button");
+        b.className = "bc-btn";
+        b.textContent = label;
+        b.onclick = onclick;
+        bc.appendChild(b);
+      };
+      const addSep = () => {
+        const s = document.createElement("span");
+        s.className = "bc-sep";
+        s.textContent = "/";
+        bc.appendChild(s);
+      };
+
+      addBtn(currentRepo.name, () => jumpToStack(-1));
+
+      pathStack.forEach((frame, i) => {
+        addSep();
+        addBtn(frame.label, () => jumpToStack(i));
+      });
+
+      if (currentPath) {
+        addSep();
+        const cur = document.createElement("span");
+        cur.className = "bc-current";
+        cur.textContent = currentPath.split("/").pop();
+        bc.appendChild(cur);
+      }
+    }
+
+    // ── File list ──────────────────────────────────────────────────────────────
+    function setLoading() {
+      document.getElementById("fileListWrap").innerHTML =
+        '<div class="loading-row">Loading…</div>';
+    }
+
+    function renderFileList() {
+      const wrap = document.getElementById("fileListWrap");
+
+      if (!currentItems.length) {
+        wrap.innerHTML = '<div class="empty-row">This folder is empty.</div>';
+        return;
+      }
+
+      const table = document.createElement("table");
+      table.className = "file-table";
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="selectAll" title="Select all" /></th>
+            <th class="col-name">Name</th>
+            <th class="col-size">Size</th>
+            <th class="col-act"></th>
+          </tr>
+        </thead>
+      `;
+
+      const tbody = document.createElement("tbody");
+
+      currentItems.forEach(item => {
+        const isDir  = item.type === "dir";
+        const icon   = isDir ? "📁" : "📄";
+        const size   = isDir ? "—" : fmtBytes(item.size);
+        const isChk  = selected.has(item.path);
+
+        const tr = document.createElement("tr");
+        tr.dataset.path = item.path;
+
+        // -- checkbox cell --
+        const tdCheck = document.createElement("td");
+        tdCheck.className = "col-check";
+        const cb = document.createElement("input");
+        cb.type    = "checkbox";
+        cb.checked = isChk;
+        cb.dataset.path = item.path;
+        cb.addEventListener("change", e => {
+          if (e.target.checked) selected.add(item.path);
+          else                  selected.delete(item.path);
+          renderActionBar();
+        });
+        tdCheck.appendChild(cb);
+
+        // -- name cell --
+        const tdName = document.createElement("td");
+        tdName.className = "col-name";
+        const iconSpan = document.createElement("span");
+        iconSpan.className = "row-icon";
+        iconSpan.textContent = icon;
+        tdName.appendChild(iconSpan);
+
+        if (isDir) {
+          const btn = document.createElement("button");
+          btn.className   = "row-name-btn";
+          btn.textContent = item.name;
+          btn.onclick     = () => enterFolder(item);
+          tdName.appendChild(btn);
+        } else {
+          const btn = document.createElement("button");
+          btn.className   = "row-name-btn";
+          btn.textContent = item.name;
+          btn.onclick     = () => handleFileClick(item);
+          tdName.appendChild(btn);
+        }
+
+        // -- size cell --
+        const tdSize = document.createElement("td");
+        tdSize.className   = "col-size";
+        tdSize.textContent = size;
+
+        // -- action cell --
+        const tdAct  = document.createElement("td");
+        tdAct.className = "col-act";
+        const dlBtn  = document.createElement("button");
+        dlBtn.className   = "save-btn";
+        dlBtn.textContent = isDir ? "↓ Save folder" : "↓ Save file";
+        dlBtn.onclick     = () => isDir ? downloadFolder(item) : downloadFile(item);
+        tdAct.appendChild(dlBtn);
+
+        tr.append(tdCheck, tdName, tdSize, tdAct);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wrap.innerHTML = "";
+      wrap.appendChild(table);
+
+      // select-all checkbox
+      document.getElementById("selectAll").addEventListener("change", e => {
+        document.querySelectorAll("input.item-check-real, tbody input[type=checkbox]").forEach(c => {
+          c.checked = e.target.checked;
+          if (e.target.checked) selected.add(c.dataset.path);
+          else                  selected.delete(c.dataset.path);
+        });
+        // also mark via DOM
+        tbody.querySelectorAll("input[type=checkbox]").forEach(c => {
+          c.checked = e.target.checked;
+          if (e.target.checked) selected.add(c.dataset.path);
+          else                  selected.delete(c.dataset.path);
+        });
+        renderActionBar();
+      });
+    }
+
+    // ── Action bar ─────────────────────────────────────────────────────────────
+    function renderActionBar() {
+      const bar = document.getElementById("actionBar");
+      if (selected.size > 0) {
+        bar.classList.add("visible");
+        document.getElementById("selCount").textContent =
+          `${selected.size} item${selected.size !== 1 ? "s" : ""} selected`;
+      } else {
+        bar.classList.remove("visible");
+      }
+    }
+
+    document.getElementById("clearSelBtn").addEventListener("click", () => {
+      selected.clear();
+      document.querySelectorAll("#fileListWrap input[type=checkbox]").forEach(cb => cb.checked = false);
+      const sa = document.getElementById("selectAll");
+      if (sa) sa.checked = false;
+      renderActionBar();
+    });
+
+    document.getElementById("dlSelectedBtn").addEventListener("click", () => {
+      const items = currentItems.filter(it => selected.has(it.path));
+      if (!items.length) return;
+
+      // single file shortcut — use save-file dialog
+      if (items.length === 1 && items[0].type === "file") {
+        downloadFile(items[0]);
+        return;
+      }
+
+      // everything else → directory picker
+      downloadMultiple(items);
+    });
+
+    // ── Fetch file bytes ───────────────────────────────────────────────────────
+    async function fetchBytes(item) {
+      const remotePath = item.path || item.remotePath;
+
+      // Files ≤ 1 MB → contents API (base64); larger → raw blob API
+      if (item.size && item.size > 1_000_000) {
+        return ghRaw(
+          `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/git/blobs/${item.sha}`
+        );
+      }
+      const meta = await ghJSON(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${remotePath}`
+      );
+      if (meta.encoding === "base64") {
+        const bin = atob(meta.content.replace(/\n/g, ""));
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        return buf.buffer;
+      }
+      // fallback to raw
+      return ghRaw(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/git/blobs/${item.sha}`
+      );
+    }
+
+    // ── Download single file ───────────────────────────────────────────────────
+    async function downloadFile(item) {
+      try {
+        if (window.showSaveFilePicker) {
+          const ext  = item.name.includes(".") ? item.name.split(".").pop() : "";
+          const opts = {
+            suggestedName: item.name,
+            types: ext
+              ? [{ description: "File", accept: { "application/octet-stream": ["." + ext] } }]
+              : []
+          };
+          let fh;
+          try { fh = await window.showSaveFilePicker(opts); }
+          catch (e) { if (e.name === "AbortError") return; throw e; }
+
+          setStatus(`Saving ${item.name}…`, "info");
+          const data     = await fetchBytes(item);
+          const writable = await fh.createWritable();
+          await writable.write(data);
+          await writable.close();
+          setStatus(`✓ ${item.name} saved.`, "ok");
+        } else {
+          // Fallback: anchor-download
+          setStatus(`Downloading ${item.name}…`, "info");
+          const data = await fetchBytes(item);
+          triggerDownload(data, item.name);
+          setStatus(`✓ Download started: ${item.name}`, "ok");
+        }
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      }
+    }
+
+    // ── Download entire folder ─────────────────────────────────────────────────
+    async function downloadFolder(dirItem) {
+      try {
+        setStatus(`Scanning ${dirItem.name}…`, "info");
+        const files = [];
+        await collectFiles(dirItem.path, dirItem.name, files);
+        await saveBundle(files, `${dirItem.name}.zip`);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      }
+    }
+
+    // ── Download multiple selected items ───────────────────────────────────────
+    async function downloadMultiple(items) {
+      try {
+        const files = [];
+        for (const item of items) {
+          if (item.type === "file") {
+            files.push({ remotePath: item.path, localPath: item.name, size: item.size, sha: item.sha });
+          } else {
+            setStatus(`Scanning ${item.name}…`, "info");
+            await collectFiles(item.path, item.name, files);
+          }
+        }
+        await saveBundle(files, buildBundleName(items));
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      }
+    }
+
+    // ── Recursively collect all file entries from a directory ──────────────────
+    async function collectFiles(remotePath, localBase, results) {
+      const url  = `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${remotePath}`;
+      const list = await ghJSON(url);
+      if (!Array.isArray(list)) return;
+      for (const item of list) {
+        if (item.type === "file") {
+          results.push({
+            remotePath: item.path,
+            localPath:  `${localBase}/${item.name}`,
+            size:       item.size,
+            sha:        item.sha
+          });
+        } else if (item.type === "dir") {
+          await collectFiles(item.path, `${localBase}/${item.name}`, results);
+        }
+      }
+    }
+
+    // ── Write collected files into a chosen directory ──────────────────────────
+    async function writeFiles(rootHandle, files) {
+      if (!files.length) {
+        setStatus("Nothing to download.", "info");
+        return;
+      }
+      showProgress(true, 0, files.length);
+      let done = 0, errors = 0;
+
+      for (const f of files) {
+        updateProgress(done, files.length, f.localPath.split("/").pop());
+        try {
+          // Navigate / create subdirectories
+          const parts  = f.localPath.split("/");
+          const fname  = parts.pop();
+          let dirHandle = rootHandle;
+          for (const part of parts) {
+            dirHandle = await dirHandle.getDirectoryHandle(part, { create: true });
+          }
+          // Write file
+          const fileHandle = await dirHandle.getFileHandle(fname, { create: true });
+          const data       = await fetchBytes(f);
+          const writable   = await fileHandle.createWritable();
+          await writable.write(data);
+          await writable.close();
+          done++;
+          updateProgress(done, files.length, fname);
+        } catch {
+          errors++;
+          done++;
+        }
+      }
+
+      showProgress(false);
+      if (errors) {
+        setStatus(`Done — ${files.length - errors} saved, ${errors} failed.`, "bad");
+      } else {
+        setStatus(`✓ All ${files.length} file${files.length !== 1 ? "s" : ""} saved successfully.`, "ok");
+      }
+    }
+
+    async function saveBundle(files, archiveName) {
+      if (!files.length) {
+        setStatus("Nothing to download.", "info");
+        return;
+      }
+
+      if (window.JSZip) {
+        await downloadZipBundle(files, archiveName);
+        return;
+      }
+
+      if (!window.showDirectoryPicker) {
+        setStatus("Folder download is not available because ZIP support did not load in this browser.", "bad");
+        return;
+      }
+
+      let rootHandle;
+      try { rootHandle = await window.showDirectoryPicker({ mode: "readwrite" }); }
+      catch (e) { if (e.name === "AbortError") return; throw e; }
+      await writeFiles(rootHandle, files);
+    }
+
+    async function downloadZipBundle(files, archiveName) {
+      showProgress(true, 0, files.length);
+      try {
+        const zip = new JSZip();
+        let done = 0;
+        let errors = 0;
+
+        for (const file of files) {
+          updateProgress(done, files.length, file.localPath);
+          try {
+            const data = await fetchBytes(file);
+            zip.file(file.localPath, data);
+          } catch {
+            errors++;
+          } finally {
+            done++;
+            updateProgress(done, files.length, file.localPath);
+          }
+        }
+
+        if (done === errors) {
+          setStatus("Folder download failed.", "bad");
+          return;
+        }
+
+        updateProgress(files.length, files.length, "Creating zip…");
+        const blob = await zip.generateAsync(
+          { type: "blob", compression: "STORE" },
+          meta => updateProgress(files.length, files.length, meta.currentFile || `Creating zip… ${Math.round(meta.percent)}%`)
+        );
+        const saved = await saveBlob(blob, sanitizeDownloadName(archiveName), "application/zip", [".zip"]);
+
+        if (!saved) {
+          setStatus("Download cancelled.", "info");
+          return;
+        }
+
+        if (errors) {
+          setStatus(`Downloaded ZIP with ${files.length - errors} file${files.length - errors !== 1 ? "s" : ""}. ${errors} failed.`, "bad");
+        } else {
+          setStatus(`✓ ZIP download started: ${archiveName}`, "ok");
+        }
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      } finally {
+        showProgress(false);
+      }
+    }
+
+    function buildBundleName(items) {
+      if (items.length === 1) {
+        return `${items[0].name}.zip`;
+      }
+
+      const repoName = currentRepo?.name || "download";
+      const folderName = currentPath ? currentPath.split("/").pop() : "root";
+      return `${repoName}-${folderName}-selection.zip`;
+    }
+
+    function sanitizeDownloadName(name) {
+      return name.replace(/[\\/:*?"<>|]+/g, "-");
+    }
+
+    async function saveBlob(blob, name, mimeType = "application/octet-stream", extensions = []) {
+      if (window.showSaveFilePicker) {
+        const opts = {
+          suggestedName: name,
+          types: [{
+            description: "Download",
+            accept: { [mimeType]: extensions }
+          }]
+        };
+
+        let fileHandle;
+        try { fileHandle = await window.showSaveFilePicker(opts); }
+        catch (e) {
+          if (e.name === "AbortError") return false;
+          if (e.name !== "SecurityError") throw e;
+        }
+
+        if (fileHandle) {
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return true;
+        }
+      }
+
+      triggerBlobDownload(blob, name);
+      return true;
+    }
+
+    // ── Progress overlay ───────────────────────────────────────────────────────
+    function showProgress(show, done = 0, total = 0) {
+      document.getElementById("progOverlay").style.display = show ? "flex" : "none";
+      if (show) updateProgress(done, total, "");
+    }
+
+    function updateProgress(done, total, label) {
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById("progFill").style.width  = pct + "%";
+      document.getElementById("progLabel").textContent =
+        `${done} / ${total} files${label ? " — " + label : ""}`;
+    }
+
+    // ── Status message ─────────────────────────────────────────────────────────
+    function setStatus(msg, type) {
+      const el = document.getElementById("statusMsg");
+      el.textContent = msg;
+      el.className = `status-msg show ${type}`;
+    }
+    function clearStatus() {
+      const el = document.getElementById("statusMsg");
+      el.className = "status-msg";
+      el.textContent = "";
+    }
+
+    // ── Anchor download fallback ───────────────────────────────────────────────
+    function triggerDownload(buffer, name) {
+      const blob = new Blob([buffer]);
+      triggerBlobDownload(blob, name);
+    }
+
+    function triggerBlobDownload(blob, name) {
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 60000);
+    }
+
+    // ── Browser-viewable MIME types ─────────────────────────────────────────
+    const BROWSER_MIME = {
+      pdf:  'application/pdf',
+      png:  'image/png',
+      jpg:  'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif:  'image/gif',
+      svg:  'image/svg+xml',
+      webp: 'image/webp',
+      bmp:  'image/bmp',
+      ico:  'image/x-icon',
+      txt:  'text/plain',
+      md:   'text/plain',
+      csv:  'text/plain',
+      html: 'text/html',
+      htm:  'text/html',
+      xml:  'text/xml',
+      json: 'application/json',
+      mp4:  'video/mp4',
+      webm: 'video/webm',
+      mp3:  'audio/mpeg',
+      wav:  'audio/wav',
+      ogg:  'audio/ogg',
+    };
+
+    function getViewMime(filename) {
+      const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+      return BROWSER_MIME[ext] || null;
+    }
+
+    async function openInBrowser(item) {
+      try {
+        setStatus(`Loading ${item.name}\u2026`, "info");
+        const data = await fetchBytes(item);
+        const mime = getViewMime(item.name);
+        const blob = new Blob([data], { type: mime });
+        const url  = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // blob URL is intentionally kept alive for the opened tab
+        setStatus(`\u2713 Opened ${item.name} in new tab. Use the Save file button to also download it.`, "ok");
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      }
+    }
+
+    async function handleFileClick(item) {
+      const mime = getViewMime(item.name);
+      if (mime) {
+        await openInBrowser(item);
+      } else {
+        await downloadFile(item);
+      }
+    }
+
+    // ── Format bytes ──────────────────────────────────────────────────────────
+    function fmtBytes(n) {
+      if (!n)           return "0 B";
+      if (n < 1024)     return n + " B";
+      if (n < 1048576)  return (n / 1024).toFixed(1) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+  </script>
+</body>
+</html>

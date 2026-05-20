@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity Log</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="../theme.js"></script>
+  <style>
+    .log-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .log-toolbar select {
+      border: 1px solid #ccc; border-radius: 8px; padding: 6px 10px;
+      font: inherit; font-size: .8rem; background: white; color: #333; cursor: pointer;
+      min-width: 140px;
+    }
+    .log-toolbar select:focus { outline: none; border-color: #0d6b57; box-shadow: 0 0 0 3px rgba(13,107,87,.12); }
+    .log-toolbar button { white-space: nowrap; width: auto; }
+
+    .log-summary { font-size: .78rem; color: #999; margin-bottom: 8px; }
+
+    .log-list {
+      border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden;
+    }
+
+    /* ── Compact row ── */
+    .log-entry {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: .8rem;
+      cursor: default;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry:hover { background: #f9f9f9; }
+    .log-entry.clickable { cursor: pointer; }
+
+    .log-body  { min-width: 0; line-height: 1.4; }
+    .log-line1 { display: flex; align-items: baseline; gap: 6px; overflow: hidden; }
+    .log-repo  { font-weight: 600; color: #0d6b57; white-space: nowrap; flex-shrink: 0; }
+    .log-msg   { color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-meta  { font-size: .7rem; color: #bbb; margin-top: 1px; }
+    .log-time  { flex-shrink: 0; color: #bbb; font-size: .72rem; white-space: nowrap; text-align: right; }
+
+    .log-empty   { padding: 40px 16px; color: #bbb; text-align: center; font-size: .9rem; }
+    .log-loading { padding: 28px 16px; color: #bbb; text-align: center; font-size: .9rem; }
+
+    .show-all-wrap { text-align: center; margin-top: 10px; }
+    .show-all-btn {
+      background: white; border: 1px solid #ddd; border-radius: 8px;
+      padding: 7px 24px; font: inherit; font-size: .82rem; color: #555;
+      cursor: pointer; transition: background .12s;
+    }
+    .show-all-btn:hover { background: #f5f5f5; }
+
+    /* ── Modal ── */
+    .cm-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.40); z-index: 900;
+      align-items: center; justify-content: center;
+    }
+    .cm-overlay.open { display: flex; }
+    .cm-box {
+      background: white; border-radius: 12px;
+      width: min(720px, 96vw); max-height: 88vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,.18);
+    }
+    .cm-header {
+      padding: 14px 18px; border-bottom: 1px solid #eee;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .cm-header strong { font-size: .95rem; }
+    .cm-close {
+      border: none; background: none; font-size: 1.1rem;
+      cursor: pointer; color: #aaa; line-height: 1;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .cm-close:hover { color: #555; background: #f0f0f0; }
+    .cm-body { overflow-y: auto; flex: 1; }
+    .cm-body .log-list { border: none; border-radius: 0; }
+
+    .status-msg { display:none; padding:10px 13px; border-radius:8px; font-size:.875rem; margin-bottom:14px; }
+    .status-msg.show { display:block; }
+    .status-msg.bad  { background:#fff0ec; color:#9f3a2f; border:1px solid rgba(159,58,47,.22); }
+  </style>
+</head>
+<body>
+  <div class="workspace-shell">
+    <aside class="sidebar">
+      <div class="brand-block"><h2>Workspace</h2></div>
+      <div class="welcome-block"><strong id="welcomeName">welcome admin</strong></div>
+      <div class="menu-list">
+        <a href="../index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="../autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
+        <a href="../git-data/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
+        <a href="../git-upload/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
+        <a href="../documents/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>Documents</a>
+        <a href="../git-repos/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Git Repos</a>
+        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</a>
+      </div>
+      <div class="sidebar-footer">
+        <button id="signOutButton" class="secondary-button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button>
+        <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      </div>
+    </aside>
+    <main class="content-pane">
+      <section class="section-panel">
+        <div class="section-header">
+          <h2>Activity Log</h2>
+          <div class="section-intro">Your recent GitHub activity, fetched live from GitHub.
+            <span id="loginLabel" style="color:#0d6b57; font-weight:600;"></span>
+          </div>
+        </div>
+
+        <div id="noTokenWarning" class="alert error" style="display:none; margin-top:14px;">
+          No GitHub token found.
+          <a href="../autenticate/index.html" style="color:inherit;font-weight:600;text-decoration:underline;">Authenticate first →</a>
+        </div>
+
+        <div id="mainPanel" style="display:none; margin-top:18px;">
+          <div id="statusMsg" class="status-msg"></div>
+
+          <!-- Diagnostics panel -->
+          <div id="debugPanel" style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.78rem;color:#555;line-height:1.7;">
+            <strong>Diagnostics</strong>
+            <button onclick="this.parentElement.style.display='none'" style="float:right;border:none;background:none;cursor:pointer;color:#aaa;font-size:1rem;">✕</button>
+            <div id="dbgLogin">Login: resolving…</div>
+            <div id="dbgUrl">URL: —</div>
+            <div id="dbgCount">Events fetched: —</div>
+            <div id="dbgError" style="color:#c00;"></div>
+          </div>
+
+          <div class="log-toolbar">
+            <select id="logRepoFilter"><option value="">All repositories</option></select>
+            <select id="logTypeFilter">
+              <option value="25">Last 25 commits / repo</option>
+              <option value="50">Last 50 commits / repo</option>
+              <option value="100">Last 100 commits / repo</option>
+            </select>
+            <button id="refreshBtn" class="secondary-button" style="padding:8px 14px;">↻ Refresh</button>
+          </div>
+
+          <div class="log-summary" id="logSummary"></div>
+
+          <div class="log-list" id="logList">
+            <div class="log-loading">Loading activity…</div>
+          </div>
+
+          <div class="show-all-wrap" id="showAllWrap" style="display:none;">
+            <button class="show-all-btn" id="showAllBtn">Show all commits</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── All-commits modal ── -->
+  <div class="cm-overlay" id="cmOverlay">
+    <div class="cm-box">
+      <div class="cm-header">
+        <strong id="cmTitle">All commits</strong>
+        <button class="cm-close" id="cmClose">✕</button>
+      </div>
+      <div class="cm-body">
+        <div class="log-list" id="modalList"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // ── Session guard ──────────────────────────────────────────────────────
+    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    if (!sessionUserRaw) location.href = "../../index.html";
+    const sessionUser = JSON.parse(sessionUserRaw || "{}");
+    document.getElementById("welcomeName").textContent = `welcome ${sessionUser.username || "admin"}`;
+    document.getElementById("signOutButton").addEventListener("click", () => {
+      sessionStorage.removeItem("portable-user");
+      location.href = "../../index.html";
+    });
+
+    // ── Token ──────────────────────────────────────────────────────────────
+    const TOKEN = localStorage.getItem("portable-github-token") || "";
+    if (!TOKEN) {
+      document.getElementById("noTokenWarning").style.display = "block";
+    } else {
+      document.getElementById("mainPanel").style.display = "block";
+      loadEvents();
+    }
+
+    // ── GitHub API ─────────────────────────────────────────────────────────
+    async function ghFetch(url) {
+      const r = await fetch(url, {
+        headers: {
+          "Authorization": `Bearer ${TOKEN}`,
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        }
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+      return r.json();
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let allCommits = [];  // flat array of {sha, repo, message, author, date, url}
+    let allRepos   = [];  // list of full_name strings
+
+    function esc(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+    function relTime(iso) {
+      if (!iso) return "";
+      const diff = Date.now() - new Date(iso).getTime();
+      const m = Math.floor(diff / 60000);
+      if (m < 2)   return "just now";
+      if (m < 60)  return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24)  return `${h}h ago`;
+      const d = Math.floor(h / 24);
+      if (d < 30)  return `${d}d ago`;
+      return new Date(iso).toLocaleDateString();
+    }
+
+    // ── Load repos then their commits ──────────────────────────────────────
+    async function loadEvents() {
+      allCommits = [];
+      document.getElementById("logList").innerHTML = '<div class="log-loading">Loading repositories…</div>';
+      document.getElementById("showAllWrap").style.display = "none";
+      document.getElementById("dbgError").textContent = "";
+
+      // Resolve login
+      const ghUser = JSON.parse(localStorage.getItem("portable-github-user") || "{}");
+      let login = ghUser.login;
+      document.getElementById("dbgLogin").textContent = `Login: ${login || "(resolving…)"}`;
+      if (!login && TOKEN) {
+        try {
+          const me = await ghFetch("https://api.github.com/user");
+          login = me.login;
+          localStorage.setItem("portable-github-user", JSON.stringify(me));
+        } catch (e) {
+          document.getElementById("dbgError").textContent = `Resolve user failed: ${e.message}`;
+          document.getElementById("logList").innerHTML =
+            `<div class="log-empty">Could not resolve GitHub user: ${esc(e.message)}<br>
+             <a href="../autenticate/index.html" style="color:#0d6b57;font-weight:600;">Go to Authenticate →</a></div>`;
+          return;
+        }
+      }
+      if (!login) {
+        document.getElementById("logList").innerHTML =
+          '<div class="log-empty">No GitHub token.<br>' +
+          '<a href="../autenticate/index.html" style="color:#0d6b57;font-weight:600;">Go to Authenticate →</a></div>';
+        return;
+      }
+      document.getElementById("loginLabel").textContent = `· @${login}`;
+      document.getElementById("dbgLogin").textContent   = `Login: @${login}`;
+
+      // Fetch all repos
+      try {
+        const repos = await ghFetch(
+          `https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator`
+        );
+        allRepos = repos.map(r => r.full_name);
+        document.getElementById("dbgUrl").textContent = `Repos fetched: ${allRepos.length}`;
+        populateRepoFilter(allRepos);
+      } catch (e) {
+        document.getElementById("dbgError").textContent = `Fetch repos failed: ${e.message}`;
+        document.getElementById("logList").innerHTML =
+          `<div class="log-empty" style="color:#9f3a2f;">Failed to load repos: ${esc(e.message)}</div>`;
+        return;
+      }
+
+      await loadCommitsForFilter();
+    }
+
+    // ── Load commits based on current filter ───────────────────────────────
+    async function loadCommitsForFilter() {
+      allCommits = [];
+      document.getElementById("logList").innerHTML = '<div class="log-loading">Loading commits…</div>';
+      document.getElementById("dbgError").textContent = "";
+
+      const repoF = document.getElementById("logRepoFilter").value;
+      const perRepo = parseInt(document.getElementById("logTypeFilter").value, 10) || 10;
+      const reposToFetch = repoF ? [repoF] : allRepos.slice(0, 20); // show top 20 by recency
+
+      document.getElementById("dbgUrl").textContent =
+        `Fetching ${perRepo} commit(s)/repo from ${reposToFetch.length} repo(s)${repoF ? `: ${repoF}` : " (top 20 by recent update)"}`;
+
+      // Fetch commits from each repo in parallel
+      const results = await Promise.allSettled(
+        reposToFetch.map(repo =>
+          ghFetch(`https://api.github.com/repos/${repo}/commits?per_page=${perRepo}`)
+            .then(commits => commits.map(c => ({
+              sha:     c.sha,
+              repo:    repo,
+              message: c.commit?.message?.split("\n")[0] || "",
+              author:  c.commit?.author?.name || c.commit?.committer?.name || "",
+              date:    c.commit?.author?.date || c.commit?.committer?.date || "",
+              url:     c.html_url || ""
+            })))
+            .catch(() => []) // skip repos we can't read
+        )
+      );
+
+      results.forEach(r => {
+        if (r.status === "fulfilled") allCommits.push(...r.value);
+      });
+
+      // Sort all commits newest-first
+      allCommits.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      document.getElementById("dbgCount").textContent =
+        `Commits loaded: ${allCommits.length} across ${reposToFetch.length} repo(s)`;
+
+      renderLog();
+    }
+
+    // ── Populate repo dropdown ─────────────────────────────────────────────
+    function populateRepoFilter(repoNames) {
+      const sel = document.getElementById("logRepoFilter");
+      sel.innerHTML = '<option value="">All repositories (top 20)</option>';
+      repoNames.forEach(r => {
+        const opt = document.createElement("option");
+        opt.value = opt.textContent = r;
+        sel.appendChild(opt);
+      });
+    }
+
+    // ── Build a compact row ──────────────────────────────────────────────
+    function makeRow(c) {
+      const row = document.createElement("div");
+      row.className = "log-entry" + (c.url ? " clickable" : "");
+      const shortRepo = c.repo.includes("/") ? c.repo.split("/")[1] : c.repo;
+      row.innerHTML = `
+        <div class="log-body">
+          <div class="log-line1">
+            <span class="log-repo">${esc(shortRepo)}</span>
+            <span class="log-msg">${esc(c.message)}</span>
+          </div>
+          <div class="log-meta">${esc(c.author)} &middot; <code>${esc(c.sha.slice(0,7))}</code> &middot; ${new Date(c.date).toLocaleString()}</div>
+        </div>
+        <div class="log-time">${esc(relTime(c.date))}</div>
+      `;
+      if (c.url) { row.title = "Open on GitHub"; row.onclick = () => window.open(c.url, "_blank"); }
+      return row;
+    }
+
+    // ── Render first 25 in page, rest behind modal ────────────────────────
+    const PAGE_SIZE = 25;
+
+    function renderLog() {
+      const list = document.getElementById("logList");
+      const wrap = document.getElementById("showAllWrap");
+
+      if (!allCommits.length) {
+        list.innerHTML = '<div class="log-empty">No commits found.</div>';
+        document.getElementById("logSummary").textContent = "";
+        wrap.style.display = "none";
+        return;
+      }
+
+      const shown = allCommits.slice(0, PAGE_SIZE);
+      const rest  = allCommits.length - shown.length;
+
+      document.getElementById("logSummary").textContent =
+        `${allCommits.length} commit${allCommits.length !== 1 ? "s" : ""}`;
+
+      list.innerHTML = "";
+      shown.forEach(c => list.appendChild(makeRow(c)));
+
+      if (rest > 0) {
+        document.getElementById("showAllBtn").textContent = `Show all ${allCommits.length} commits`;
+        wrap.style.display = "block";
+      } else {
+        wrap.style.display = "none";
+      }
+    }
+
+    // ── Modal ─────────────────────────────────────────────────────────────
+    function openModal() {
+      const ml = document.getElementById("modalList");
+      document.getElementById("cmTitle").textContent = `All ${allCommits.length} commits`;
+      ml.innerHTML = "";
+      allCommits.forEach(c => ml.appendChild(makeRow(c)));
+      document.getElementById("cmOverlay").classList.add("open");
+    }
+    function closeModal() {
+      document.getElementById("cmOverlay").classList.remove("open");
+    }
+
+    // ── Events ─────────────────────────────────────────────────────────────
+    document.getElementById("logRepoFilter").addEventListener("change", loadCommitsForFilter);
+    document.getElementById("logTypeFilter").addEventListener("change", loadCommitsForFilter);
+    document.getElementById("refreshBtn").addEventListener("click", loadEvents);
+    document.getElementById("showAllBtn").addEventListener("click", openModal);
+    document.getElementById("cmClose").addEventListener("click", closeModal);
+    document.getElementById("cmOverlay").addEventListener("click", e => { if (e.target === e.currentTarget) closeModal(); });
+  </script>
+</body>
+</html>

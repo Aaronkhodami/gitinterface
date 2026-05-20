@@ -1,0 +1,538 @@
+/* ── Google Font: Ubuntu ────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
+
+*,
+*::before,
+*::after {
+  font-family: 'Ubuntu', sans-serif !important;
+}
+
+/* ── CSS Variables ───────────────────────────────────────────────────────── */
+:root {
+  --bg:           #f4f4f4;
+  --surface:      #ffffff;
+  --surface-2:    #f8f8f8;
+  --surface-3:    #f0f0f0;
+  --border:       #ddd;
+  --border-2:     #e8e8e8;
+  --border-3:     #eee;
+  --text:         #111;
+  --text-2:       #555;
+  --text-3:       #666;
+  --text-muted:   #888;
+  --hover-bg:     #f0f0f0;
+  --accent:       #0d6b57;
+  --accent-hover: #0a5443;
+  --accent-bg:    #f0faf7;
+  --accent-focus: rgba(13,107,87,0.12);
+  --error-bg:           #fff0ec;
+  --error-border:       rgba(159,58,47,0.25);
+  --error-text:         #9f3a2f;
+  --error-border-solid: #c4574a;
+  --error-bg-hover:     #fff5f5;
+  --success-bg:         #edf9f1;
+  --success-border:     rgba(31,106,60,0.25);
+  --success-text:       #1f6a3c;
+}
+
+[data-theme="dark"] {
+  --bg:           #141414;
+  --surface:      #1e1e1e;
+  --surface-2:    #262626;
+  --surface-3:    #2c2c2c;
+  --border:       #333;
+  --border-2:     #2e2e2e;
+  --border-3:     #2a2a2a;
+  --text:         #efefef;
+  --text-2:       #a8a8a8;
+  --text-3:       #888;
+  --text-muted:   #666;
+  --hover-bg:     #2c2c2c;
+  --accent:       #15a87e;
+  --accent-hover: #11906a;
+  --accent-bg:    rgba(21,168,126,0.1);
+  --accent-focus: rgba(21,168,126,0.15);
+  --error-bg:           #2a1816;
+  --error-border:       rgba(200,80,60,0.22);
+  --error-text:         #e07060;
+  --error-border-solid: #a05040;
+  --error-bg-hover:     #2a1816;
+  --success-bg:         #162b1e;
+  --success-border:     rgba(40,140,80,0.22);
+  --success-text:       #55c47a;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background .2s, color .2s;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+/* ── Login ───────────────────────────────────────────────────────────────── */
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-layout {
+  width: 100%;
+  max-width: 460px;
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+
+.auth-card h2 {
+  margin: 0 0 22px;
+  font-size: 1.3rem;
+}
+
+.auth-logo {
+  display: block;
+  width: 220px;
+  height: auto;
+  margin: 0 auto 16px;
+}
+
+/* ── Loading Overlay ──────────────────────────────────────────────────── */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s ease;
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.loading-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  animation: scaleIn 0.3s ease;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-2);
+  margin: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 1rem;
+  transition: border-color 0.15s;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-focus);
+}
+
+.field input:disabled {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primary-button:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.secondary-button:hover {
+  background: var(--accent-bg);
+}
+
+.ghost-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  color: var(--error-text);
+  border: 1px solid var(--error-border-solid);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.ghost-button:hover {
+  background: var(--error-bg-hover);
+}
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+
+.alert {
+  display: none;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 10px;
+}
+
+.alert.show {
+  display: block;
+}
+
+.alert.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
+}
+
+.alert.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+
+/* ── Workspace Layout ────────────────────────────────────────────────────── */
+
+.workspace-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  min-height: 100vh;
+  transition: background .2s, border-color .2s;
+}
+
+.brand-block {
+  margin-bottom: 20px;
+}
+
+.brand-block h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.welcome-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: var(--text-2);
+  margin-bottom: 14px;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--text-2);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  line-height: 1.4;
+  transition: background 0.12s, color 0.12s;
+}
+
+.menu-button svg {
+  flex-shrink: 0;
+  opacity: .7;
+  transition: opacity .12s;
+}
+
+.menu-button:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.menu-button:hover svg {
+  opacity: 1;
+}
+
+.menu-button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.menu-button.active svg {
+  opacity: 1;
+}
+
+/* ── Sidebar Footer ──────────────────────────────────────────────────────── */
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-3);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sidebar-footer .secondary-button {
+  flex: 1;
+}
+
+.theme-toggle-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+  transition: background .12s, color .12s;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+/* Light mode: show moon (click → go dark). Dark mode: show sun (click → go light). */
+.icon-sun  { display: none;  }
+.icon-moon { display: block; }
+
+[data-theme="dark"] .icon-sun  { display: block; }
+[data-theme="dark"] .icon-moon { display: none;  }
+
+/* ── Login page theme toggle ─────────────────────────────────────────────── */
+
+.floating-theme-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  transition: background .12s, color .12s;
+}
+
+.floating-theme-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+
+.content-pane {
+  flex: 1;
+  padding: 32px;
+  min-width: 0;
+}
+
+.section-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 720px;
+}
+
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.section-intro {
+  color: var(--text-3);
+  font-size: 0.9rem;
+  margin-top: 6px;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .workspace-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    min-height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-footer {
+    margin-top: 16px;
+  }
+
+  .content-pane {
+    padding: 20px;
+  }
+}
+
+
+

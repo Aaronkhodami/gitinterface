@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Repos</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="../theme.js"></script>
+  <style>
+    .section-panel { max-width: none; }
+
+    .status-msg { display:none; padding:10px 13px; border-radius:8px; font-size:.875rem; margin-bottom:14px; }
+    .status-msg.show { display:block; }
+    .status-msg.info { background:#e8f4ff; color:#1a5ca8; border:1px solid rgba(26,92,168,.2); }
+    .status-msg.ok   { background:#edf9f1; color:#1f6a3c; border:1px solid rgba(31,106,60,.22); }
+    .status-msg.bad  { background:#fff0ec; color:#9f3a2f; border:1px solid rgba(159,58,47,.22); }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 160px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: .875rem;
+      background: var(--surface);
+      color: var(--text);
+    }
+    .toolbar input[type="text"]:focus {
+      outline: none;
+      border-color: #0d6b57;
+      box-shadow: 0 0 0 3px rgba(13,107,87,.12);
+    }
+    .toolbar button { white-space: nowrap; width: auto; }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: .85rem;
+      cursor: pointer;
+      color: var(--text-2);
+      transition: background .12s, border-color .12s;
+    }
+    .filter-btn.active { background: #0d6b57; color: white; border-color: #0d6b57; }
+    .filter-btn:hover:not(.active) { background: var(--hover-bg); }
+
+    .repo-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .repo-table thead th {
+      padding: 7px 12px;
+      border-bottom: 2px solid var(--border-2);
+      font-size: .75rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .repo-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border-3);
+      vertical-align: middle;
+      color: var(--text);
+    }
+    .repo-table tbody tr:last-child td { border-bottom: none; }
+    .repo-table tbody tr:hover td { background: var(--hover-bg); }
+
+    .repo-name { font-weight: 600; color: var(--text); }
+    .repo-desc {
+      color: var(--text-muted);
+      font-size: .8rem;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+      white-space: nowrap;
+    }
+    .badge-public  { background: #edf9f1; color: #1f6a3c; border: 1px solid rgba(31,106,60,.2); }
+    .badge-private { background: var(--surface-3); color: var(--text-3); border: 1px solid var(--border); }
+    .badge-fork    { background: #f0f4ff; color: #3a5cb8; border: 1px solid rgba(58,92,184,.2); }
+
+    .lang-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+      background: #ccc;
+    }
+    .col-name { min-width: 160px; }
+    .col-vis { width: 80px; }
+    .col-lang { width: 120px; }
+    .col-stars { width: 60px; text-align: right; color: var(--text-muted); }
+    .col-updated { width: 120px; color: var(--text-muted); font-size: .8rem; white-space: nowrap; }
+    .col-acts { width: 200px; text-align: right; white-space: nowrap; }
+
+    .act-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font: inherit;
+      font-size: .78rem;
+      cursor: pointer;
+      color: var(--text-2);
+      transition: background .12s, border-color .12s;
+      margin-left: 4px;
+    }
+    .act-btn:hover { background: var(--hover-bg); border-color: var(--border); }
+    .act-btn.danger { color: #9f3a2f; border-color: #e8b5af; }
+    .act-btn.danger:hover { background: #fff0ec; border-color: #c4574a; }
+
+    .empty-row, .loading-row {
+      padding: 32px 12px;
+      color: var(--text-muted);
+      text-align: center;
+      font-size: .9rem;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+    }
+    .modal-box {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 32px;
+      width: min(520px, 95vw);
+      box-shadow: 0 10px 40px rgba(0,0,0,.18);
+      color: var(--text);
+    }
+    .modal-box h3 { margin: 0 0 20px; font-size: 1.1rem; }
+    .modal-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .modal-field label { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+    .modal-field input[type="text"],
+    .modal-field textarea,
+    .modal-field select {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: .875rem;
+      transition: border-color .15s;
+      background: var(--surface);
+      color: var(--text);
+    }
+    .modal-field input[type="text"]:focus,
+    .modal-field textarea:focus,
+    .modal-field select:focus {
+      outline: none;
+      border-color: #0d6b57;
+      box-shadow: 0 0 0 3px rgba(13,107,87,.12);
+    }
+    .modal-field textarea { resize: vertical; min-height: 70px; }
+    .modal-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: .875rem;
+      transition: background .12s;
+    }
+    .modal-toggle:hover { background: var(--hover-bg); }
+    .modal-toggle input { cursor: pointer; width: 16px; height: 16px; accent-color: #0d6b57; }
+    .modal-toggle-label { font-weight: 600; }
+    .modal-toggle-sub { color: var(--text-muted); font-size: .8rem; margin-top: 1px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
+    .modal-actions button { width: auto; min-width: 90px; }
+
+    @media (max-width: 900px) {
+      .col-lang, .col-stars, .col-updated { display: none; }
+      .col-acts { width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="workspace-shell">
+    <aside class="sidebar">
+      <div class="brand-block"><h2>Workspace</h2></div>
+      <div class="welcome-block"><strong id="welcomeName">welcome admin</strong></div>
+      <div class="menu-list">
+        <a href="../index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="../autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
+        <a href="../git-data/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
+        <a href="../git-upload/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
+        <a href="../documents/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>Documents</a>
+        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Git Repos</a>
+        <a href="../git-log/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</a>
+      </div>
+      <div class="sidebar-footer">
+        <button id="signOutButton" class="secondary-button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button>
+        <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      </div>
+    </aside>
+    <main class="content-pane">
+      <section class="section-panel">
+        <div class="section-header">
+          <h2>Git Repos</h2>
+          <div class="section-intro">Create, delete, rename, and manage visibility of your GitHub repositories.</div>
+        </div>
+
+        <div id="noTokenWarning" class="alert error" style="display:none; margin-top:14px;">
+          No GitHub token found.
+          <a href="../autenticate/index.html" style="color:inherit;font-weight:600;text-decoration:underline;">Authenticate first →</a>
+        </div>
+
+        <div id="mainPanel" style="display:none; margin-top:18px;">
+          <div id="statusMsg" class="status-msg"></div>
+
+          <div class="toolbar">
+            <input type="text" id="searchInput" placeholder="Search repositories…" />
+            <button class="filter-btn active" id="filterAll">All</button>
+            <button class="filter-btn" id="filterPublic">Public</button>
+            <button class="filter-btn" id="filterPrivate">Private</button>
+            <button class="filter-btn" id="filterFork">Forks</button>
+            <button id="refreshBtn" class="secondary-button" style="padding:8px 14px;font-size:.875rem;">↻ Refresh</button>
+            <button id="createRepoBtn" class="primary-button" style="padding:8px 16px;font-size:.875rem;">+ New repository</button>
+          </div>
+
+          <div id="repoSummary" style="font-size:.8rem;color:#999;margin-bottom:10px;"></div>
+
+          <div style="border:1px solid #e0e0e0; border-radius:10px; overflow:hidden;">
+            <div id="repoTableWrap">
+              <div class="loading-row">Loading repositories…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="repoModal" style="display:none;">
+    <div class="modal-box">
+      <h3 id="modalTitle">New repository</h3>
+
+      <div class="modal-field">
+        <label for="modalName">Repository name <span style="color:#c00">*</span></label>
+        <input type="text" id="modalName" placeholder="my-repo" maxlength="100" />
+      </div>
+
+      <div class="modal-field">
+        <label for="modalDesc">Description <span style="color:#aaa;font-weight:400;">(optional)</span></label>
+        <textarea id="modalDesc" placeholder="What is this repo about?"></textarea>
+      </div>
+
+      <div class="modal-field">
+        <label>Visibility</label>
+        <label class="modal-toggle">
+          <input type="checkbox" id="modalPrivate" />
+          <div>
+            <div class="modal-toggle-label">Private repository</div>
+            <div class="modal-toggle-sub">Unchecked means public.</div>
+          </div>
+        </label>
+      </div>
+
+      <div id="createOnlyFields">
+        <div class="modal-field">
+          <label class="modal-toggle">
+            <input type="checkbox" id="modalInit" checked />
+            <div>
+              <div class="modal-toggle-label">Initialize with README</div>
+              <div class="modal-toggle-sub">Useful if you want the repo to exist immediately with a default branch.</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="modal-field">
+          <label for="modalGitignore">.gitignore template <span style="color:#aaa;font-weight:400;">(optional)</span></label>
+          <select id="modalGitignore">
+            <option value="">None</option>
+            <option value="Node">Node</option>
+            <option value="Python">Python</option>
+            <option value="VisualStudioCode">VisualStudioCode</option>
+            <option value="Java">Java</option>
+            <option value="C++">C++</option>
+          </select>
+        </div>
+
+        <div class="modal-field">
+          <label for="modalLicense">License <span style="color:#aaa;font-weight:400;">(optional)</span></label>
+          <select id="modalLicense">
+            <option value="">None</option>
+            <option value="mit">MIT</option>
+            <option value="apache-2.0">Apache 2.0</option>
+            <option value="gpl-3.0">GPL v3</option>
+            <option value="bsd-3-clause">BSD 3-Clause</option>
+            <option value="lgpl-3.0">LGPL v3</option>
+            <option value="mpl-2.0">Mozilla Public License 2.0</option>
+            <option value="unlicense">The Unlicense</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="modalCancelBtn" class="secondary-button">Cancel</button>
+        <button id="modalSubmitBtn" class="primary-button">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    if (!sessionUserRaw) location.href = "../../index.html";
+    const sessionUser = JSON.parse(sessionUserRaw || "{}");
+    document.getElementById("welcomeName").textContent = `welcome ${sessionUser.username || "admin"}`;
+    document.getElementById("signOutButton").addEventListener("click", () => {
+      sessionStorage.removeItem("portable-user");
+      location.href = "../../index.html";
+    });
+
+    const TOKEN = localStorage.getItem("portable-github-token") || "";
+    if (!TOKEN) {
+      document.getElementById("noTokenWarning").style.display = "block";
+    } else {
+      document.getElementById("mainPanel").style.display = "block";
+      loadRepos();
+    }
+
+    let allRepos = [];
+    let filterMode = "all";
+    let editingRepo = null;
+
+    function ghHeaders(extra = {}) {
+      return {
+        "Authorization": `Bearer ${TOKEN}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...extra
+      };
+    }
+
+    async function ghFetch(url, opts = {}) {
+      const { headers: extraHeaders, ...restOpts } = opts;
+      const r = await fetch(url, { headers: ghHeaders(extraHeaders || {}), ...restOpts });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+      return r.status === 204 ? null : r.json();
+    }
+
+    async function loadRepos() {
+      setStatus("Loading…", "info");
+      showTableLoading();
+      try {
+        let repos = [];
+        for (let page = 1; page <= 10; page++) {
+          const batch = await ghFetch(`https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated&affiliation=owner`);
+          repos = repos.concat(batch);
+          if (batch.length < 100) break;
+        }
+        allRepos = repos;
+        clearStatus();
+        renderTable();
+      } catch (err) {
+        setStatus(`Failed to load repositories: ${err.message}`, "bad");
+        showTableEmpty("Failed to load repositories.");
+      }
+    }
+
+    function filteredRepos() {
+      const q = document.getElementById("searchInput").value.trim().toLowerCase();
+      return allRepos.filter(r => {
+        if (filterMode === "public" && (r.private || r.fork)) return false;
+        if (filterMode === "private" && !r.private) return false;
+        if (filterMode === "fork" && !r.fork) return false;
+        if (q && !r.name.toLowerCase().includes(q) && !(r.description || "").toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }
+
+    ["filterAll", "filterPublic", "filterPrivate", "filterFork"].forEach(id => {
+      document.getElementById(id).addEventListener("click", () => {
+        filterMode = { filterAll: "all", filterPublic: "public", filterPrivate: "private", filterFork: "fork" }[id];
+        document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+        renderTable();
+      });
+    });
+
+    document.getElementById("searchInput").addEventListener("input", renderTable);
+    document.getElementById("refreshBtn").addEventListener("click", loadRepos);
+
+    const LANG_COLORS = {
+      JavaScript: "#f1e05a", TypeScript: "#3178c6", Python: "#3572A5",
+      Java: "#b07219", "C++": "#f34b7d", C: "#555555", "C#": "#178600",
+      Go: "#00ADD8", Rust: "#dea584", Ruby: "#701516", PHP: "#4F5D95",
+      Swift: "#F05138", Kotlin: "#A97BFF", Shell: "#89e051", HTML: "#e34c26",
+      CSS: "#563d7c", Dart: "#00B4AB", Lua: "#000080", R: "#198CE7"
+    };
+
+    function relTime(iso) {
+      if (!iso) return "—";
+      const diff = Date.now() - new Date(iso).getTime();
+      const m = Math.floor(diff / 60000);
+      if (m < 2) return "just now";
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}h ago`;
+      const d = Math.floor(h / 24);
+      if (d < 30) return `${d}d ago`;
+      const mo = Math.floor(d / 30);
+      if (mo < 12) return `${mo}mo ago`;
+      return `${Math.floor(mo / 12)}y ago`;
+    }
+
+    function renderTable() {
+      const repos = filteredRepos();
+      document.getElementById("repoSummary").textContent = `${repos.length} of ${allRepos.length} repositor${allRepos.length !== 1 ? "ies" : "y"}`;
+      const wrap = document.getElementById("repoTableWrap");
+
+      if (!repos.length) {
+        wrap.innerHTML = '<div class="empty-row">No repositories match your filter.</div>';
+        return;
+      }
+
+      const table = document.createElement("table");
+      table.className = "repo-table";
+      table.innerHTML = `<thead><tr>
+        <th class="col-name">Name</th>
+        <th class="col-vis">Visibility</th>
+        <th class="col-lang">Language</th>
+        <th class="col-stars">★</th>
+        <th class="col-updated">Updated</th>
+        <th class="col-acts">Actions</th>
+      </tr></thead>`;
+
+      const tbody = document.createElement("tbody");
+      repos.forEach(repo => {
+        const tr = document.createElement("tr");
+
+        const tdName = document.createElement("td");
+        tdName.className = "col-name";
+        tdName.innerHTML = `<div class="repo-name">${escHtml(repo.name)}</div>${repo.description ? `<div class="repo-desc" title="${escHtml(repo.description)}">${escHtml(repo.description)}</div>` : ""}`;
+
+        const tdVis = document.createElement("td");
+        tdVis.className = "col-vis";
+        tdVis.innerHTML = repo.fork
+          ? '<span class="badge badge-fork">Fork</span>'
+          : repo.private
+            ? '<span class="badge badge-private">Private</span>'
+            : '<span class="badge badge-public">Public</span>';
+
+        const tdLang = document.createElement("td");
+        tdLang.className = "col-lang";
+        if (repo.language) {
+          const color = LANG_COLORS[repo.language] || "#ccc";
+          tdLang.innerHTML = `<span class="lang-dot" style="background:${color}"></span>${escHtml(repo.language)}`;
+        } else {
+          tdLang.textContent = "—";
+          tdLang.style.color = "#ccc";
+        }
+
+        const tdStars = document.createElement("td");
+        tdStars.className = "col-stars";
+        tdStars.textContent = repo.stargazers_count || "0";
+
+        const tdUpd = document.createElement("td");
+        tdUpd.className = "col-updated";
+        tdUpd.textContent = relTime(repo.updated_at);
+        tdUpd.title = repo.updated_at;
+
+        const tdActs = document.createElement("td");
+        tdActs.className = "col-acts";
+
+        const visBtn = document.createElement("button");
+        visBtn.className = "act-btn";
+        visBtn.textContent = repo.private ? "Make public" : "Make private";
+        visBtn.onclick = () => toggleVisibility(repo);
+
+        const editBtn = document.createElement("button");
+        editBtn.className = "act-btn";
+        editBtn.textContent = "Edit";
+        editBtn.onclick = () => openEditModal(repo);
+
+        const ghBtn = document.createElement("button");
+        ghBtn.className = "act-btn";
+        ghBtn.textContent = "↗";
+        ghBtn.onclick = () => window.open(repo.html_url, "_blank", "noopener");
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "act-btn danger";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = () => deleteRepo(repo);
+
+        tdActs.append(visBtn, editBtn, ghBtn, delBtn);
+        tr.append(tdName, tdVis, tdLang, tdStars, tdUpd, tdActs);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wrap.innerHTML = "";
+      wrap.appendChild(table);
+    }
+
+    function showTableLoading() {
+      document.getElementById("repoTableWrap").innerHTML = '<div class="loading-row">Loading…</div>';
+    }
+
+    function showTableEmpty(msg) {
+      document.getElementById("repoTableWrap").innerHTML = `<div class="empty-row">${msg}</div>`;
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+    }
+
+    async function toggleVisibility(repo) {
+      const toPrivate = !repo.private;
+      const label = toPrivate ? "private" : "public";
+      if (!confirm(`Make \"${repo.name}\" ${label}?\n\n${toPrivate ? "Only you and collaborators will see it." : "Anyone on the internet will see it."}`)) return;
+      try {
+        setStatus("Updating visibility…", "info");
+        const updated = await ghFetch(`https://api.github.com/repos/${repo.owner.login}/${repo.name}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ private: toPrivate })
+        });
+        const idx = allRepos.findIndex(r => r.id === repo.id);
+        if (idx >= 0) allRepos[idx] = { ...allRepos[idx], private: updated.private };
+        setStatus(`✓ \"${repo.name}\" is now ${label}.`, "ok");
+        renderTable();
+      } catch (err) {
+        setStatus(`Failed to update visibility: ${err.message}`, "bad");
+      }
+    }
+
+    async function deleteRepo(repo) {
+      const confirmed = prompt(`⚠ This will PERMANENTLY delete \"${repo.name}\" and all its contents.\n\nType the repository name to confirm:`);
+      if (confirmed === null) return;
+      if (confirmed.trim() !== repo.name) {
+        setStatus("Cancelled: name didn't match.", "bad");
+        return;
+      }
+      try {
+        setStatus(`Deleting \"${repo.name}\"…`, "info");
+        await ghFetch(`https://api.github.com/repos/${repo.owner.login}/${repo.name}`, { method: "DELETE" });
+        allRepos = allRepos.filter(r => r.id !== repo.id);
+        setStatus(`✓ \"${repo.name}\" has been permanently deleted.`, "ok");
+        renderTable();
+      } catch (err) {
+        setStatus(`Delete failed: ${err.message}`, "bad");
+      }
+    }
+
+    document.getElementById("createRepoBtn").addEventListener("click", () => {
+      editingRepo = null;
+      document.getElementById("modalTitle").textContent = "New repository";
+      document.getElementById("modalName").value = "";
+      document.getElementById("modalDesc").value = "";
+      document.getElementById("modalPrivate").checked = false;
+      document.getElementById("modalInit").checked = true;
+      document.getElementById("modalGitignore").value = "";
+      document.getElementById("modalLicense").value = "";
+      document.getElementById("modalSubmitBtn").textContent = "Create";
+      document.getElementById("createOnlyFields").style.display = "block";
+      document.getElementById("repoModal").style.display = "flex";
+      document.getElementById("modalName").focus();
+    });
+
+    function openEditModal(repo) {
+      editingRepo = repo;
+      document.getElementById("modalTitle").textContent = `Edit \"${repo.name}\"`;
+      document.getElementById("modalName").value = repo.name;
+      document.getElementById("modalDesc").value = repo.description || "";
+      document.getElementById("modalPrivate").checked = repo.private;
+      document.getElementById("modalSubmitBtn").textContent = "Save changes";
+      document.getElementById("createOnlyFields").style.display = "none";
+      document.getElementById("repoModal").style.display = "flex";
+      document.getElementById("modalName").focus();
+    }
+
+    document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
+    document.getElementById("repoModal").addEventListener("click", event => {
+      if (event.target === document.getElementById("repoModal")) closeModal();
+    });
+
+    function closeModal() {
+      document.getElementById("repoModal").style.display = "none";
+      editingRepo = null;
+    }
+
+    document.getElementById("modalSubmitBtn").addEventListener("click", async () => {
+      const name = document.getElementById("modalName").value.trim();
+      const desc = document.getElementById("modalDesc").value.trim();
+      const priv = document.getElementById("modalPrivate").checked;
+
+      if (!name) { alert("Repository name is required."); return; }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(name)) {
+        alert("Repository names may only contain letters, numbers, hyphens, underscores, and dots.");
+        return;
+      }
+
+      const submitBtn = document.getElementById("modalSubmitBtn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = editingRepo ? "Saving…" : "Creating…";
+
+      try {
+        if (editingRepo) {
+          const updated = await ghFetch(`https://api.github.com/repos/${editingRepo.owner.login}/${editingRepo.name}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description: desc, private: priv })
+          });
+          const idx = allRepos.findIndex(r => r.id === editingRepo.id);
+          if (idx >= 0) allRepos[idx] = updated;
+          setStatus(`✓ \"${updated.name}\" updated.`, "ok");
+        } else {
+          const body = {
+            name,
+            description: desc,
+            private: priv,
+            auto_init: document.getElementById("modalInit").checked
+          };
+          const gi = document.getElementById("modalGitignore").value;
+          const li = document.getElementById("modalLicense").value;
+          if (gi) body.gitignore_template = gi;
+          if (li) body.license_template = li;
+
+          const created = await ghFetch("https://api.github.com/user/repos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          allRepos.unshift(created);
+          setStatus(`✓ \"${created.name}\" created successfully.`, "ok");
+        }
+
+        closeModal();
+        renderTable();
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, "bad");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = editingRepo ? "Save changes" : "Create";
+      }
+    });
+
+    function setStatus(msg, type) {
+      const el = document.getElementById("statusMsg");
+      el.textContent = msg;
+      el.className = `status-msg show ${type}`;
+    }
+
+    function clearStatus() {
+      const el = document.getElementById("statusMsg");
+      el.className = "status-msg";
+      el.textContent = "";
+    }
+  </script>
+</body>
+</html>

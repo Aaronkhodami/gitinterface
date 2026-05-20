@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Upload</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="../theme.js"></script>
+  <style>
+    /* ── Repo / breadcrumb bar ── */
+    .repo-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .repo-bar label { font-size:.875rem; font-weight:600; color:#444; white-space:nowrap; }
+    .repo-select { border:1px solid #ccc; border-radius:8px; padding:8px 12px; font-size:.9rem; background:white; min-width:160px; flex:1; cursor:pointer; }
+    .repo-select:focus { outline:none; border-color:#0d6b57; box-shadow:0 0 0 3px rgba(13,107,87,.12); }
+
+    .breadcrumb { display:flex; align-items:center; gap:2px; flex-wrap:wrap; margin-bottom:14px; min-height:30px; font-size:.9rem; }
+    .bc-btn { background:none; border:none; cursor:pointer; font:inherit; font-size:.9rem; color:#0d6b57; padding:3px 6px; border-radius:5px; }
+    .bc-btn:hover { background:#f0f0f0; }
+    .bc-sep { color:#bbb; padding:0 2px; user-select:none; }
+    .bc-current { color:#111; padding:3px 6px; }
+
+    /* ── Status ── */
+    .status-msg { display:none; padding:10px 13px; border-radius:8px; font-size:.875rem; margin-bottom:14px; }
+    .status-msg.show { display:block; }
+    .status-msg.info { background:#e8f4ff; color:#1a5ca8; border:1px solid rgba(26,92,168,.2); }
+    .status-msg.ok   { background:#edf9f1; color:#1f6a3c; border:1px solid rgba(31,106,60,.22); }
+    .status-msg.bad  { background:#fff0ec; color:#9f3a2f; border:1px solid rgba(159,58,47,.22); }
+
+    /* ── Override section-panel max-width for wide two-column layout ── */
+    .section-panel { max-width: none; }
+
+    /* ── Two-column layout ── */
+    .upload-layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.2fr);
+      gap: 20px;
+      align-items: start;
+      margin-top: 4px;
+    }
+
+    /* ── Panel box (bordered card) ── */
+    .panel-box { border:1px solid #e0e0e0; border-radius:10px; overflow:hidden; }
+    .panel-box-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #f8f8f8;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .panel-box-head h3 { margin:0; font-size:.9rem; font-weight:700; }
+    .panel-box-body { max-height: 460px; overflow-y: auto; overflow-x: hidden; }
+
+    /* ── Existing-files table ── */
+    .file-table { width:100%; border-collapse:collapse; font-size:.875rem; }
+    .file-table td { padding:7px 10px; border-bottom:1px solid #f2f2f2; vertical-align:middle; }
+    .file-table tr:last-child td { border-bottom:none; }
+    .file-table tr:hover td { background:#fafafa; }
+    .col-check { width:32px; }
+    .col-icon  { width:28px; }
+    .col-name  { }
+    .col-del   { width:36px; text-align:right; white-space:nowrap; }
+    .file-table th { padding:6px 10px; border-bottom:2px solid #e8e8e8; font-size:.75rem; color:#999; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    .nav-btn { background:none; border:none; cursor:pointer; font:inherit; font-size:.875rem; color:#0d6b57; padding:0; }
+    .nav-btn:hover { text-decoration:underline; }
+    .del-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:1rem; padding:2px 5px; border-radius:4px; line-height:1; transition:color .12s,background .12s; }
+    .del-btn:hover { color:#9f3a2f; background:#fff0ec; }
+    .empty-cell   { padding:28px 12px; color:#bbb; font-size:.875rem; text-align:center; }
+    .loading-cell { padding:18px 12px; color:#bbb; font-size:.875rem; text-align:center; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 10px;
+      padding: 26px 18px;
+      text-align: center;
+      transition: border-color .15s, background .15s;
+      margin-bottom: 12px;
+    }
+    .drop-zone.drag-over { border-color:#0d6b57; background:#f0fdf9; }
+    .drop-zone p { color:#999; margin:0 0 12px; font-size:.875rem; }
+    .drop-buttons { display:flex; gap:8px; justify-content:center; }
+    .drop-buttons button { width:auto; padding:7px 16px; font-size:.875rem; }
+
+    /* ── Upload queue table ── */
+    .queue-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .queue-table thead th {
+      padding:5px 8px; border-bottom:2px solid #e8e8e8;
+      font-size:.72rem; color:#999; font-weight:700;
+      text-transform:uppercase; letter-spacing:.04em; text-align:left; white-space:nowrap;
+    }
+    .queue-table td { padding:6px 8px; border-bottom:1px solid #f2f2f2; vertical-align:middle; }
+    .queue-table tbody tr:last-child td { border-bottom:none; }
+    .queue-table tbody tr.unselected td { opacity:.38; }
+    .qc-check { width:28px; }
+    .qc-name  { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+    .qc-ext   { width:52px; color:#0d6b57; font-family:monospace; font-size:.76rem; }
+    .qc-path  { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#aaa; font-size:.75rem; }
+    .qc-size  { width:68px; text-align:right; color:#bbb; white-space:nowrap; }
+    .qc-rm    { width:26px; text-align:right; }
+    .qi-rm { background:none; border:none; cursor:pointer; color:#ccc; padding:2px 5px; font-size:.95rem; line-height:1; border-radius:4px; }
+    .qi-rm:hover { color:#9f3a2f; background:#fff0ec; }
+
+    /* ── Controls section ── */
+    .ctrl-section { margin-top: 14px; }
+    .ctrl-label { display:block; font-size:.8rem; font-weight:600; color:#555; margin-bottom:5px; }
+    .ctrl-row { display:flex; gap:8px; margin-bottom:12px; }
+    .ctrl-row input[type="text"] {
+      flex:1; border:1px solid #ccc; border-radius:8px;
+      padding:8px 12px; font:inherit; font-size:.875rem;
+    }
+    .ctrl-row input[type="text"]:focus { outline:none; border-color:#0d6b57; box-shadow:0 0 0 3px rgba(13,107,87,.12); }
+    .ctrl-row button { width:auto; padding:8px 14px; font-size:.875rem; white-space:nowrap; }
+
+    /* ── Progress ── */
+    .prog-bar { background:#eee; border-radius:4px; height:8px; overflow:hidden; margin:10px 0 5px; }
+    .prog-fill { background:#0d6b57; height:100%; border-radius:4px; transition:width .18s; }
+    .prog-text { font-size:.78rem; color:#888; margin-bottom:10px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .upload-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .repo-bar { flex-direction: column; align-items: stretch; }
+      .repo-select { min-width: 0; }
+      .drop-buttons { flex-direction: column; }
+      .drop-buttons button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="workspace-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <h2>Workspace</h2>
+      </div>
+
+      <div class="welcome-block">
+        <strong id="welcomeName">welcome admin</strong>
+      </div>
+
+      <div class="menu-list">
+        <a href="../index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="../autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
+        <a href="../git-data/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
+        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
+        <a href="../documents/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>Documents</a>
+        <a href="../git-repos/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Git Repos</a>
+        <a href="../git-log/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</a>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="signOutButton" class="secondary-button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button>
+        <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      </div>
+    </aside>
+    <main class="content-pane">
+      <section class="section-panel">
+        <div class="section-header">
+          <h2>Git Upload</h2>
+          <div class="section-intro">
+            Navigate to a target folder, drag or pick files / entire folders, write a commit message, then upload.
+            Create folders, delete files or entire folder trees, or select multiple items for bulk delete.
+          </div>
+        </div>
+
+        <!-- No token warning -->
+        <div id="noTokenWarning" class="alert error" style="display:none; margin-top:14px;">
+          No GitHub token found.
+          <a href="../autenticate/index.html" style="color:inherit;font-weight:600;text-decoration:underline;">Authenticate first →</a>
+        </div>
+
+        <!-- Main panel (shown when token exists) -->
+        <div id="browserPanel" style="display:none; margin-top:16px;">
+
+          <!-- Repo selector -->
+          <div class="repo-bar">
+            <label for="repoSelect">Repository:</label>
+            <select id="repoSelect" class="repo-select">
+              <option value="">Loading repositories…</option>
+            </select>
+          </div>
+
+          <!-- Breadcrumb -->
+          <div id="breadcrumb" class="breadcrumb"></div>
+
+          <!-- Status -->
+          <div id="statusMsg" class="status-msg"></div>
+
+          <!-- Two columns -->
+          <div class="upload-layout">
+
+            <!-- LEFT: existing directory contents -->
+            <div class="panel-box">
+              <div class="panel-box-head">
+                <h3>Current directory</h3>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span id="existingCount" style="font-size:.78rem;color:#999;"></span>
+                  <button id="refreshBtn" title="Refresh directory"
+                    style="background:none;border:1px solid #ccc;border-radius:6px;cursor:pointer;
+                           padding:2px 9px;font-size:.8rem;color:#555;line-height:1.6;
+                           transition:background .12s;">
+                    ↻ Refresh
+                  </button>
+                </div>
+              </div>
+              <div class="panel-box-body">
+                <div id="existingList">
+                  <div class="empty-cell">Select a repository to browse.</div>
+                </div>
+              </div>
+              <!-- Selection footer -->
+              <div id="delFooter" style="display:none;padding:8px 14px;border-top:1px solid #eee;background:#fafafa;align-items:center;gap:10px;">
+                <span id="selCount" style="flex:1;font-size:.8rem;color:#666;">0 selected</span>
+                <button id="deleteSelectedBtn" class="ghost-button" style="width:auto;padding:5px 14px;font-size:.8rem;">🗑 Delete selected</button>
+              </div>
+              <!-- Delete progress -->
+              <div id="delProgSection" style="display:none;padding:6px 14px 10px;border-top:1px solid #eee;">
+                <div class="prog-bar" style="margin-top:6px;"><div id="delProgFill" class="prog-fill" style="width:0%;background:#c4574a;"></div></div>
+                <div id="delProgText" class="prog-text">0 / 0</div>
+              </div>
+            </div>
+
+            <!-- RIGHT: upload panel -->
+            <div>
+              <!-- Drop zone -->
+              <div class="drop-zone" id="dropZone">
+                <div style="font-size:2rem;margin-bottom:8px;">📂</div>
+                <p style="font-weight:600;font-size:.95rem;margin-bottom:6px;">Drag &amp; drop files or folders here</p>
+                <p style="font-size:.82rem;color:#777;margin-bottom:12px;">
+                  Select multiple folders in File Explorer, then drag them all here at once.
+                </p>
+                <div class="drop-buttons">
+                  <button id="pickFilesBtn" class="secondary-button">Add files</button>
+                  <button id="pickFolderBtn" class="secondary-button">Add one folder</button>
+                </div>
+              </div>
+
+              <!-- Queue panel (shown when there are items) -->
+              <div class="panel-box" id="queueBox" style="display:none; margin-bottom:12px;">
+                <div class="panel-box-head">
+                  <h3 id="queueTitle">Upload queue (0)</h3>
+                  <button id="clearQueueBtn"
+                    style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#888;padding:0;">
+                    Clear all
+                  </button>
+                </div>
+                <div class="panel-box-body">
+                  <div id="queueList"></div>
+                </div>
+              </div>
+
+              <!-- Controls -->
+              <div class="ctrl-section">
+
+                <!-- New folder -->
+                <span class="ctrl-label">Create new folder at this location</span>
+                <div class="ctrl-row">
+                  <input type="text" id="newFolderInput" placeholder="folder-name" />
+                  <button id="createFolderBtn" class="secondary-button">Create</button>
+                </div>
+
+                <!-- Commit message -->
+                <span class="ctrl-label">Commit message</span>
+                <div class="ctrl-row">
+                  <input type="text" id="commitMsg" value="Upload files via Portable Workspace" />
+                </div>
+
+                <!-- Upload button -->
+                <button id="uploadBtn" class="primary-button" style="display:none; margin-bottom:10px;">
+                  ↑ Upload selected files
+                </button>
+
+                <!-- Progress bar (shown during upload) -->
+                <div id="progSection" style="display:none;">
+                  <div class="prog-bar">
+                    <div class="prog-fill" id="progFill" style="width:0%"></div>
+                  </div>
+                  <div class="prog-text" id="progText">0 / 0</div>
+                </div>
+
+              </div>
+            </div>
+
+          </div><!-- /upload-layout -->
+        </div><!-- /browserPanel -->
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ── Session guard ──────────────────────────────────────────────────────
+    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    if (!sessionUserRaw) location.href = "../../index.html";
+    const sessionUser = JSON.parse(sessionUserRaw || "{}");
+    document.getElementById("welcomeName").textContent = `welcome ${sessionUser.username || "admin"}`;
+    document.getElementById("signOutButton").addEventListener("click", () => {
+      sessionStorage.removeItem("portable-user");
+      location.href = "../../index.html";
+    });
+
+    // ── Token check ────────────────────────────────────────────────────────
+    const TOKEN = localStorage.getItem("portable-github-token") || "";
+    if (!TOKEN) {
+      document.getElementById("noTokenWarning").style.display = "block";
+    } else {
+      document.getElementById("browserPanel").style.display = "block";
+      initRepos();
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let currentRepo  = null;
+    let currentPath  = "";
+    let pathStack    = [];
+    let currentItems = [];
+    let uploadQueue   = []; // [{file, remotePath, displayName}]
+    let selectedPaths = new Set(); // paths of checked items in current directory
+
+    // ── API helpers ────────────────────────────────────────────────────────
+    function ghHeaders(extra = {}) {
+      return {
+        "Authorization": `Bearer ${TOKEN}`,
+        "Accept":        "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...extra
+      };
+    }
+
+    // Encode each path segment but keep slashes as-is
+    function encodePath(path) {
+      return path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    async function ghJSON(url) {
+      const r = await fetch(url, { headers: ghHeaders() });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+      return r.json();
+    }
+
+    // Returns the file's SHA if it already exists in the repo (needed for updates)
+    async function getFileSHA(remotePath) {
+      try {
+        const r = await fetch(
+          `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(remotePath)}`,
+          { headers: ghHeaders() }
+        );
+        if (r.status === 404) return null;
+        if (!r.ok) return null;
+        const d = await r.json();
+        return Array.isArray(d) ? null : (d.sha || null);
+      } catch { return null; }
+    }
+
+    function fileToBase64(file) {
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload  = e => res(e.target.result.split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // PUT one file to GitHub (create or overwrite)
+    async function uploadOneFile(remotePath, file, commitMsg) {
+      const LIMIT = 50 * 1024 * 1024;
+      if (file.size > LIMIT) {
+        throw new Error(`File too large (${fmtBytes(file.size)}). GitHub REST API supports up to ~50 MB per file.`);
+      }
+      const base64 = await fileToBase64(file);
+      const sha    = await getFileSHA(remotePath);
+      const body   = { message: commitMsg, content: base64 };
+      if (sha) body.sha = sha; // required when updating an existing file
+
+      const r = await fetch(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(remotePath)}`,
+        {
+          method: "PUT",
+          headers: ghHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(body)
+        }
+      );
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+      return r.json();
+    }
+
+    // DELETE one file from GitHub
+    async function deleteOneFile(item, commitMsg) {
+      const r = await fetch(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(item.path)}`,
+        {
+          method: "DELETE",
+          headers: ghHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ message: commitMsg || `Delete ${item.name}`, sha: item.sha })
+        }
+      );
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+    }
+
+    function fmtBytes(n) {
+      if (!n)          return "0 B";
+      if (n < 1024)    return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+
+    // ── Persistence helpers ────────────────────────────────────────────────
+    const STORE_REPO  = "portable-upload-repo";
+    const STORE_PATH  = "portable-upload-path";
+    const STORE_STACK = "portable-upload-stack";
+
+    function saveNav() {
+      if (currentRepo) localStorage.setItem(STORE_REPO, JSON.stringify(currentRepo));
+      localStorage.setItem(STORE_PATH,  currentPath);
+      localStorage.setItem(STORE_STACK, JSON.stringify(pathStack));
+    }
+
+    // ── Load repo list ─────────────────────────────────────────────────────
+    async function initRepos() {
+      try {
+        let repos = [];
+        for (let page = 1; page <= 5; page++) {
+          const batch = await ghJSON(
+            `https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated`
+          );
+          repos = repos.concat(batch);
+          if (batch.length < 100) break;
+        }
+        const sel = document.getElementById("repoSelect");
+        sel.innerHTML = '<option value="">— choose a repository —</option>';
+        repos.forEach(repo => {
+          const opt      = document.createElement("option");
+          opt.value      = JSON.stringify({ owner: repo.owner.login, name: repo.name });
+          opt.textContent = repo.full_name;
+          sel.appendChild(opt);
+        });
+
+        // Restore last used repo + path
+        const savedRepo  = localStorage.getItem(STORE_REPO);
+        const savedPath  = localStorage.getItem(STORE_PATH)  || "";
+        const savedStack = localStorage.getItem(STORE_STACK);
+        if (savedRepo) {
+          const match = [...sel.options].find(o => o.value === savedRepo);
+          if (match) {
+            sel.value   = savedRepo;
+            currentRepo = JSON.parse(savedRepo);
+            pathStack   = savedStack ? JSON.parse(savedStack) : [];
+            browseTo(savedPath);
+          }
+        }
+
+        sel.addEventListener("change", () => {
+          if (!sel.value) return;
+          currentRepo  = JSON.parse(sel.value);
+          currentPath  = "";
+          pathStack    = [];
+          uploadQueue  = [];
+          renderQueue();
+          saveNav();
+          browseTo("");
+        });
+      } catch (err) {
+        setStatus(`Failed to load repositories: ${err.message}`, "bad");
+      }
+    }
+
+    // ── Refresh button ─────────────────────────────────────────────────────
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      if (currentRepo) browseTo(currentPath);
+    });
+
+    // ── Directory browser ──────────────────────────────────────────────────
+    async function browseTo(path) {
+      if (!currentRepo) return;
+      currentPath = path;
+      saveNav();
+      renderBreadcrumb();
+      showExistingLoading();
+      try {
+        const data = await ghJSON(
+          `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`
+        );
+        if (!Array.isArray(data)) { setStatus("Not a directory.", "bad"); return; }
+        currentItems = data.sort((a, b) => {
+          if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        renderExisting();
+        clearStatus();
+      } catch (err) {
+        setStatus(`Error loading directory: ${err.message}`, "bad");
+        document.getElementById("existingList").innerHTML =
+          '<div class="empty-cell">Failed to load directory.</div>';
+      }
+    }
+
+    function enterFolder(item) {
+      pathStack.push({ label: item.name, path: currentPath });
+      saveNav();
+      browseTo(item.path);
+    }
+
+    function jumpToStack(index) {
+      if (index < 0) { pathStack = []; saveNav(); browseTo(""); return; }
+      const frame = pathStack[index];
+      pathStack   = pathStack.slice(0, index);
+      saveNav();
+      browseTo(frame.path);
+    }
+
+    function renderBreadcrumb() {
+      const bc = document.getElementById("breadcrumb");
+      bc.innerHTML = "";
+      if (!currentRepo) return;
+
+      const mkBtn = (label, onclick) => {
+        const b = document.createElement("button");
+        b.className   = "bc-btn";
+        b.textContent = label;
+        b.onclick     = onclick;
+        return b;
+      };
+      const mkSep = () => {
+        const s = document.createElement("span");
+        s.className   = "bc-sep";
+        s.textContent = "/";
+        return s;
+      };
+
+      bc.appendChild(mkBtn(currentRepo.name, () => jumpToStack(-1)));
+      pathStack.forEach((frame, i) => {
+        bc.appendChild(mkSep());
+        bc.appendChild(mkBtn(frame.label, () => jumpToStack(i)));
+      });
+      if (currentPath) {
+        bc.appendChild(mkSep());
+        const cur = document.createElement("span");
+        cur.className   = "bc-current";
+        cur.textContent = currentPath.split("/").pop();
+        bc.appendChild(cur);
+      }
+    }
+
+    function showExistingLoading() {
+      document.getElementById("existingList").innerHTML =
+        '<div class="loading-cell">Loading…</div>';
+      document.getElementById("existingCount").textContent = "";
+      selectedPaths.clear();
+      updateDelFooter();
+    }
+
+    function renderExisting() {
+      const list = document.getElementById("existingList");
+      document.getElementById("existingCount").textContent =
+        `${currentItems.length} item${currentItems.length !== 1 ? "s" : ""}`;
+
+      // Reset selection whenever directory changes
+      selectedPaths.clear();
+      updateDelFooter();
+
+      if (!currentItems.length) {
+        list.innerHTML = '<div class="empty-cell">This folder is empty.</div>';
+        return;
+      }
+
+      const table = document.createElement("table");
+      table.className = "file-table";
+
+      // Header row
+      const thead = document.createElement("thead");
+      const thRow = document.createElement("tr");
+      thRow.innerHTML = `
+        <th class="col-check"><input type="checkbox" id="selectAllChk" title="Select / deselect all" /></th>
+        <th class="col-icon"></th>
+        <th class="col-name">Name</th>
+        <th class="col-del"></th>`;
+      thead.appendChild(thRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+
+      currentItems.forEach(item => {
+        const isDir = item.type === "dir";
+        const tr    = document.createElement("tr");
+
+        // Checkbox
+        const tdCheck = document.createElement("td");
+        tdCheck.className = "col-check";
+        const cb = document.createElement("input");
+        cb.type         = "checkbox";
+        cb.dataset.path = item.path;
+        cb.checked      = selectedPaths.has(item.path);
+        cb.addEventListener("change", () => {
+          if (cb.checked) selectedPaths.add(item.path);
+          else            selectedPaths.delete(item.path);
+          updateDelFooter();
+          // sync select-all checkbox state
+          const allChk = document.getElementById("selectAllChk");
+          if (allChk) {
+            const all      = [...tbody.querySelectorAll("input[type=checkbox]")];
+            const nChecked = all.filter(c => c.checked).length;
+            allChk.indeterminate = nChecked > 0 && nChecked < all.length;
+            allChk.checked       = nChecked === all.length && all.length > 0;
+          }
+        });
+        tdCheck.appendChild(cb);
+
+        // Icon
+        const tdIcon = document.createElement("td");
+        tdIcon.className   = "col-icon";
+        tdIcon.textContent = isDir ? "📁" : "📄";
+
+        // Name
+        const tdName = document.createElement("td");
+        tdName.className = "col-name";
+        if (isDir) {
+          const btn     = document.createElement("button");
+          btn.className = "nav-btn";
+          btn.textContent = item.name;
+          btn.onclick   = () => enterFolder(item);
+          tdName.appendChild(btn);
+        } else {
+          tdName.textContent = item.name;
+        }
+
+        // Delete button (both files AND folders)
+        const tdDel  = document.createElement("td");
+        tdDel.className = "col-del";
+        const delBtn = document.createElement("button");
+        delBtn.className   = "del-btn";
+        delBtn.textContent = "🗑";
+        delBtn.title       = isDir ? `Delete folder "${item.name}" and all its contents` : `Delete "${item.name}"`;
+        delBtn.onclick     = () => deleteSingleItem(item);
+        tdDel.appendChild(delBtn);
+
+        tr.append(tdCheck, tdIcon, tdName, tdDel);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      list.innerHTML = "";
+      list.appendChild(table);
+
+      // Select-all handler
+      document.getElementById("selectAllChk").addEventListener("change", e => {
+        const checked = e.target.checked;
+        tbody.querySelectorAll("input[type=checkbox]").forEach(cb => { cb.checked = checked; });
+        selectedPaths.clear();
+        if (checked) currentItems.forEach(it => selectedPaths.add(it.path));
+        updateDelFooter();
+      });
+    }
+
+    // ── Delete footer state ────────────────────────────────────────────────
+    function updateDelFooter() {
+      const footer = document.getElementById("delFooter");
+      const count  = document.getElementById("selCount");
+      if (selectedPaths.size > 0) {
+        footer.style.display = "flex";
+        count.textContent = `${selectedPaths.size} item${selectedPaths.size !== 1 ? "s" : ""} selected`;
+      } else {
+        footer.style.display = "none";
+      }
+    }
+
+    document.getElementById("deleteSelectedBtn").addEventListener("click", deleteSelected);
+
+    // ── Delete a single item (file or folder) from the 🗑 row button ───────
+    async function deleteSingleItem(item) {
+      const isDir = item.type === "dir";
+      const msg   = isDir
+        ? `Delete folder "${item.name}" and ALL its contents?\n\nEvery file inside will be removed. This cannot be undone.`
+        : `Delete "${item.name}"?\n\nThis cannot be undone.`;
+      if (!confirm(msg)) return;
+      const commitMsg = document.getElementById("commitMsg").value.trim() || `Delete ${item.name}`;
+      await runDeleteWithProgress([item], commitMsg);
+    }
+
+    // ── Delete selected items (files + folders) ────────────────────────────
+    async function deleteSelected() {
+      if (!selectedPaths.size) return;
+      const items     = currentItems.filter(it => selectedPaths.has(it.path));
+      const hasFolder = items.some(it => it.type === "dir");
+      const msg = hasFolder
+        ? `Delete ${items.length} selected item${items.length !== 1 ? "s" : ""} (including all folder contents)?\n\nThis cannot be undone.`
+        : `Delete ${items.length} selected file${items.length !== 1 ? "s" : ""}?\n\nThis cannot be undone.`;
+      if (!confirm(msg)) return;
+      const commitMsg = document.getElementById("commitMsg").value.trim() || "Delete files via Portable Workspace";
+      await runDeleteWithProgress(items, commitMsg);
+    }
+
+    // ── Core delete engine: expand folders recursively, delete each file ───
+    async function runDeleteWithProgress(items, commitMsg) {
+      setStatus("Scanning items…", "info");
+      setLocked(true);
+
+      // Collect all individual files (expand folders recursively)
+      const filesToDelete = [];
+      for (const item of items) {
+        if (item.type === "file") {
+          filesToDelete.push(item);
+        } else {
+          try {
+            await collectAllFilesInDir(item.path, filesToDelete);
+          } catch (err) {
+            setStatus(`Failed to scan "${item.name}": ${err.message}`, "bad");
+            setLocked(false);
+            return;
+          }
+        }
+      }
+
+      if (!filesToDelete.length) {
+        setStatus("Nothing to delete — the selected folders appear to be empty.", "info");
+        setLocked(false);
+        return;
+      }
+
+      // Show delete progress inside left panel
+      const delProg = document.getElementById("delProgSection");
+      delProg.style.display = "block";
+      let done = 0, errors = 0;
+
+      for (const file of filesToDelete) {
+        updateDelProg(done, filesToDelete.length, file.name);
+        try {
+          await deleteOneFile(file, commitMsg);
+          done++;
+        } catch {
+          errors++;
+          done++;
+        }
+        updateDelProg(done, filesToDelete.length, file.name);
+      }
+
+      delProg.style.display = "none";
+      setLocked(false);
+      selectedPaths.clear();
+      updateDelFooter();
+
+      if (!errors) {
+        setStatus(`✓ ${filesToDelete.length} file${filesToDelete.length !== 1 ? "s" : ""} deleted successfully.`, "ok");
+      } else {
+        setStatus(`${filesToDelete.length - errors} deleted, ${errors} failed.`, "bad");
+      }
+      browseTo(currentPath);
+    }
+
+    // Recursively collect all file entries from a directory path
+    async function collectAllFilesInDir(path, results) {
+      const data = await ghJSON(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(path)}`
+      );
+      if (!Array.isArray(data)) return;
+      for (const item of data) {
+        if (item.type === "file")      results.push(item);
+        else if (item.type === "dir") await collectAllFilesInDir(item.path, results);
+      }
+    }
+
+    function updateDelProg(done, total, label) {
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById("delProgFill").style.width = pct + "%";
+      document.getElementById("delProgText").textContent =
+        `Deleting ${done} / ${total} — ${label}`;
+    }
+
+    // ── Upload queue management ────────────────────────────────────────────
+    function addToQueue(file, relPath) {
+      const remotePath = currentPath ? `${currentPath}/${relPath}` : relPath;
+      if (uploadQueue.find(q => q.remotePath === remotePath)) return;
+      const parts      = relPath.split("/");
+      const filename   = parts[parts.length - 1];
+      const dotIdx     = filename.lastIndexOf(".");
+      const extension  = dotIdx > 0 ? filename.slice(dotIdx) : "";
+      const folderPath = parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+      uploadQueue.push({ file, remotePath, displayName: relPath, filename, extension, folderPath, selected: true });
+      renderQueue();
+    }
+
+    function renderQueue() {
+      const queueBox = document.getElementById("queueBox");
+      const list     = document.getElementById("queueList");
+      const title    = document.getElementById("queueTitle");
+      const upBtn    = document.getElementById("uploadBtn");
+
+      if (!uploadQueue.length) {
+        queueBox.style.display = "none";
+        upBtn.style.display    = "none";
+        return;
+      }
+
+      queueBox.style.display = "block";
+      upBtn.style.display    = "block";
+
+      const selCount = uploadQueue.filter(q => q.selected).length;
+      title.textContent = `Queue — ${uploadQueue.length} file${uploadQueue.length !== 1 ? "s" : ""} · ${selCount} selected`;
+
+      list.innerHTML = "";
+
+      const table = document.createElement("table");
+      table.className = "queue-table";
+
+      // ── Header
+      const thead  = document.createElement("thead");
+      const thRow  = document.createElement("tr");
+
+      const thCheck = document.createElement("th"); thCheck.className = "qc-check";
+      const allChk  = document.createElement("input");
+      allChk.type          = "checkbox";
+      allChk.id            = "queueSelectAll";
+      allChk.checked       = selCount === uploadQueue.length && uploadQueue.length > 0;
+      allChk.indeterminate = selCount > 0 && selCount < uploadQueue.length;
+      allChk.title         = "Select / deselect all";
+      thCheck.appendChild(allChk);
+
+      const thName = document.createElement("th"); thName.textContent = "File name";
+      const thExt  = document.createElement("th"); thExt.textContent  = "Ext";
+      const thPath = document.createElement("th"); thPath.textContent = "In folder";
+      const thSize = document.createElement("th"); thSize.textContent = "Size"; thSize.style.textAlign = "right";
+      const thRm   = document.createElement("th");
+      thRow.append(thCheck, thName, thExt, thPath, thSize, thRm);
+      thead.appendChild(thRow);
+      table.appendChild(thead);
+
+      // ── Body
+      const tbody = document.createElement("tbody");
+      uploadQueue.forEach((item, idx) => {
+        const tr = document.createElement("tr");
+        if (!item.selected) tr.className = "unselected";
+
+        const tdCheck = document.createElement("td"); tdCheck.className = "qc-check";
+        const cb = document.createElement("input");
+        cb.type    = "checkbox";
+        cb.checked = item.selected;
+        cb.addEventListener("change", () => { uploadQueue[idx].selected = cb.checked; renderQueue(); });
+        tdCheck.appendChild(cb);
+
+        const tdName = document.createElement("td"); tdName.className = "qc-name";
+        tdName.textContent = item.filename || item.displayName;
+        tdName.title       = `→ ${item.remotePath}`;
+
+        const tdExt  = document.createElement("td"); tdExt.className = "qc-ext";
+        tdExt.textContent  = item.extension || "—";
+
+        const tdPath = document.createElement("td"); tdPath.className = "qc-path";
+        tdPath.textContent = item.folderPath || "—";
+        tdPath.title       = item.folderPath || "";
+
+        const tdSize = document.createElement("td"); tdSize.className = "qc-size";
+        tdSize.textContent = fmtBytes(item.file.size);
+
+        const tdRm  = document.createElement("td"); tdRm.className = "qc-rm";
+        const rmBtn = document.createElement("button");
+        rmBtn.className   = "qi-rm";
+        rmBtn.textContent = "✕";
+        rmBtn.title       = "Remove from queue";
+        rmBtn.onclick     = () => { uploadQueue.splice(idx, 1); renderQueue(); };
+        tdRm.appendChild(rmBtn);
+
+        tr.append(tdCheck, tdName, tdExt, tdPath, tdSize, tdRm);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      list.appendChild(table);
+
+      allChk.addEventListener("change", e => {
+        uploadQueue.forEach(q => q.selected = e.target.checked);
+        renderQueue();
+      });
+    }
+
+    document.getElementById("clearQueueBtn").addEventListener("click", () => {
+      uploadQueue = [];
+      renderQueue();
+    });
+
+    // ── File / folder pickers ──────────────────────────────────────────────
+    // Each click creates a fresh <input> so repeated picks accumulate in the queue.
+    document.getElementById("pickFilesBtn").addEventListener("click", () => {
+      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+      const inp = document.createElement("input");
+      inp.type     = "file";
+      inp.multiple = true;
+      inp.addEventListener("change", () => {
+        for (const file of inp.files) addToQueue(file, file.name);
+      });
+      inp.click();
+    });
+
+    document.getElementById("pickFolderBtn").addEventListener("click", () => {
+      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+      const inp = document.createElement("input");
+      inp.type = "file";
+      inp.webkitdirectory = true;
+      inp.multiple        = true;
+      inp.addEventListener("change", () => {
+        for (const file of inp.files) {
+          const rel = file.webkitRelativePath || file.name;
+          addToQueue(file, rel);
+        }
+      });
+      inp.click();
+    });
+
+    // ── Drag & drop ────────────────────────────────────────────────────────
+    const dropZone = document.getElementById("dropZone");
+
+    dropZone.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+    dropZone.addEventListener("dragleave", e => {
+      if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove("drag-over");
+    });
+    dropZone.addEventListener("drop", async e => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+
+      // IMPORTANT: DataTransferItem objects are invalidated after the first await.
+      // Collect all entries/files synchronously before doing any async work.
+      const entries = [];
+      const plainFiles = [];
+      for (const item of e.dataTransfer.items) {
+        if (item.kind !== "file") continue;
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry) entries.push(entry);
+        else {
+          const f = item.getAsFile();
+          if (f) plainFiles.push(f);
+        }
+      }
+
+      // Now process everything asynchronously
+      for (const f of plainFiles) addToQueue(f, f.name);
+      for (const entry of entries) await processEntry(entry, "");
+    });
+
+    // Recursively walk a FileSystemEntry tree (handles nested folders)
+    async function processEntry(entry, basePath) {
+      if (entry.isFile) {
+        const file = await new Promise((res, rej) => entry.file(res, rej));
+        const rel  = basePath ? `${basePath}/${entry.name}` : entry.name;
+        addToQueue(file, rel);
+      } else if (entry.isDirectory) {
+        const newBase = basePath ? `${basePath}/${entry.name}` : entry.name;
+        const reader  = entry.createReader();
+        let all = [];
+        let batch;
+        // readEntries returns at most 100 entries per call — keep reading until done
+        do {
+          batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+          all   = all.concat(batch);
+        } while (batch.length > 0);
+        for (const child of all) await processEntry(child, newBase);
+      }
+    }
+
+    // ── Create folder ──────────────────────────────────────────────────────
+    document.getElementById("createFolderBtn").addEventListener("click", async () => {
+      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+      const name = document.getElementById("newFolderInput").value.trim();
+      if (!name) { setStatus("Enter a folder name.", "bad"); return; }
+      if (/[\\/:*?"<>|]/.test(name)) { setStatus("Folder name contains invalid characters.", "bad"); return; }
+
+      const folderPath = currentPath ? `${currentPath}/${name}` : name;
+      const keepPath   = `${folderPath}/.gitkeep`;
+      const commitMsg  = document.getElementById("commitMsg").value.trim() || `Create folder ${name}`;
+
+      try {
+        setStatus(`Creating folder "${name}"…`, "info");
+        const progSection = document.getElementById("progSection");
+        progSection.style.display = "block";
+        document.getElementById("progFill").style.width = "0%";
+        document.getElementById("progText").textContent = `Creating ${name}/…`;
+        const emptyFile = new File([""], ".gitkeep", { type: "text/plain" });
+        await uploadOneFile(keepPath, emptyFile, commitMsg);
+        document.getElementById("progFill").style.width = "100%";
+        document.getElementById("progText").textContent = `Done — ${name}/ created`;
+        setTimeout(() => { progSection.style.display = "none"; }, 1400);
+        setStatus(`✓ Folder "${name}" created.`, "ok");
+        document.getElementById("newFolderInput").value = "";
+        browseTo(currentPath);
+      } catch (err) {
+        document.getElementById("progSection").style.display = "none";
+        setStatus(`Failed to create folder: ${err.message}`, "bad");
+      }
+    });
+
+    // ── Upload all queued files ────────────────────────────────────────────
+    document.getElementById("uploadBtn").addEventListener("click", uploadAll);
+
+    async function uploadAll() {
+      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+      const tasks = uploadQueue.filter(q => q.selected);
+      if (!tasks.length) {
+        setStatus(
+          uploadQueue.length
+            ? "No files selected — tick the checkboxes next to the files you want to upload."
+            : "Add files to the queue first.",
+          "bad"
+        );
+        return;
+      }
+
+      const commitMsg = document.getElementById("commitMsg").value.trim()
+        || "Upload files via Portable Workspace";
+      let done = 0, errors = 0;
+
+      setLocked(true);
+      document.getElementById("progSection").style.display = "block";
+
+      for (const item of tasks) {
+        updateProg(done, tasks.length, item.displayName);
+        try {
+          await uploadOneFile(item.remotePath, item.file, commitMsg);
+          // remove successfully uploaded item from queue
+          uploadQueue = uploadQueue.filter(q => q !== item);
+          done++;
+          renderQueue();
+        } catch (err) {
+          errors++;
+          done++;
+          setStatus(`Error uploading "${item.displayName}": ${err.message}`, "bad");
+        }
+        updateProg(done, tasks.length, item.displayName);
+      }
+
+      document.getElementById("progSection").style.display = "none";
+      setLocked(false);
+
+      if (!errors) {
+        setStatus(`✓ ${tasks.length} file${tasks.length !== 1 ? "s" : ""} uploaded successfully.`, "ok");
+      } else {
+        setStatus(`${tasks.length - errors} uploaded, ${errors} failed.`, "bad");
+      }
+      browseTo(currentPath); // refresh directory view
+    }
+
+    // ── UI helpers ─────────────────────────────────────────────────────────
+    function setLocked(locked) {
+      ["uploadBtn","createFolderBtn","pickFilesBtn","pickFolderBtn","deleteSelectedBtn","refreshBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = locked;
+      });
+    }
+
+    function updateProg(done, total, label) {
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById("progFill").style.width = pct + "%";
+      document.getElementById("progText").textContent =
+        `${done} / ${total}  —  uploading ${label}`;
+    }
+
+    function setStatus(msg, type) {
+      const el = document.getElementById("statusMsg");
+      el.textContent = msg;
+      el.className   = `status-msg show ${type}`;
+    }
+
+    function clearStatus() {
+      const el = document.getElementById("statusMsg");
+      el.className   = "status-msg";
+      el.textContent = "";
+    }
+  </script>
+</body>
+</html>
