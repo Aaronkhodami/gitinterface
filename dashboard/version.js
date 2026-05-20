@@ -1,4 +1,4 @@
 // -- Interface version ------------------------------------------------------
-// This file is managed automatically by git post-commit hook.
+// This file is managed automatically by git pre-commit hook.
 window.INTERFACE_VERSION_DATE = "2026-05-20";
-window.INTERFACE_VERSION_SHA  = "11a61bf0b6046e882599efa52eccbcbaa891560d";
+window.INTERFACE_VERSION_SHA  = "e45dc1668eb1b8981ab2bed797d430b823f5a7ec";

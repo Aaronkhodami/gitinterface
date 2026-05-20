@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook: update version.js with parent SHA and date.
+# Shows the SHA of the parent commit (the current HEAD before this commit).
+
+SHA=$(git rev-parse HEAD)
+DATE=$(date +%Y-%m-%d)
+
+cat > dashboard/version.js <<EOF
+// -- Interface version ------------------------------------------------------
+// This file is managed automatically by git pre-commit hook.
+window.INTERFACE_VERSION_DATE = "$DATE";
+window.INTERFACE_VERSION_SHA  = "$SHA";
+EOF
+
+git add dashboard/version.js
