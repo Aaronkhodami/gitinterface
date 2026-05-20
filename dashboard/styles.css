@@ -122,6 +122,14 @@ input {
   margin: 0 auto 16px;
 }
 
+.auth-footer {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #888);
+}
 /* ── Loading Overlay ──────────────────────────────────────────────────── */
 
 .loading-overlay {
