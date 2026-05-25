@@ -615,16 +615,20 @@
         });
 
         if (isDir) {
-          tr.addEventListener("dragover", e => { e.preventDefault(); });
+          tr.addEventListener("dragover", e => {
+            if (dragItem) e.preventDefault();
+          });
           tr.addEventListener("dragenter", e => {
-            e.preventDefault();
-            if (dragItem && dragItem.path !== item.path && !item.path.startsWith(dragItem.path + "/")) tr.classList.add("drop-allow");
+            if (dragItem && dragItem.path !== item.path && !item.path.startsWith(dragItem.path + "/")) {
+              e.preventDefault();
+              tr.classList.add("drop-allow");
+            }
           });
           tr.addEventListener("dragleave", () => tr.classList.remove("drop-allow"));
           tr.addEventListener("drop", e => {
-            e.preventDefault();
             tr.classList.remove("drop-allow");
             if (!dragItem || dragItem.path === item.path) return;
+            e.preventDefault();
             if (item.path.startsWith(dragItem.path + "/")) { setStatus("Cannot move a folder into itself.", "bad"); return; }
             handleDropOnFolder(item, dragItem);
           });
@@ -1223,28 +1227,44 @@
         }
       }
 
+      const beforeCount = uploadQueue.length;
+
       // Now process everything asynchronously
-      for (const f of plainFiles) addToQueue(f, f.name);
-      for (const entry of entries) await processEntry(entry, "");
+      try {
+        for (const f of plainFiles) addToQueue(f, f.name);
+        for (const entry of entries) await processEntry(entry, "");
+      } catch (err) {
+        setStatus(`Error processing drop: ${err.message}`, "bad");
+        return;
+      }
+
+      if (uploadQueue.length === beforeCount) {
+        setStatus("No items were added. Try using the \"Add folder\" button instead, or drag individual files.", "bad");
+      }
     });
 
     // Recursively walk a FileSystemEntry tree (handles nested folders)
     async function processEntry(entry, basePath) {
       if (entry.isFile) {
-        const file = await new Promise((res, rej) => entry.file(res, rej));
-        const rel  = basePath ? `${basePath}/${entry.name}` : entry.name;
-        addToQueue(file, rel);
+        try {
+          const file = await new Promise((res, rej) => entry.file(res, rej));
+          const rel  = basePath ? `${basePath}/${entry.name}` : entry.name;
+          addToQueue(file, rel);
+        } catch (err) {
+          console.warn("Skipped file:", entry.name, err);
+        }
       } else if (entry.isDirectory) {
         const newBase = basePath ? `${basePath}/${entry.name}` : entry.name;
         const reader  = entry.createReader();
         let all = [];
         let batch;
-        // readEntries returns at most 100 entries per call — keep reading until done
         do {
           batch = await new Promise((res, rej) => reader.readEntries(res, rej));
           all   = all.concat(batch);
         } while (batch.length > 0);
         for (const child of all) await processEntry(child, newBase);
+      } else {
+        console.warn("Unknown entry type:", entry);
       }
     }
 
