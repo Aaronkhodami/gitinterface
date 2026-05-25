@@ -1255,14 +1255,18 @@
         }
       } else if (entry.isDirectory) {
         const newBase = basePath ? `${basePath}/${entry.name}` : entry.name;
-        const reader  = entry.createReader();
-        let all = [];
-        let batch;
-        do {
-          batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-          all   = all.concat(batch);
-        } while (batch.length > 0);
-        for (const child of all) await processEntry(child, newBase);
+        try {
+          const reader = entry.createReader();
+          let all = [];
+          let batch;
+          do {
+            batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+            all   = all.concat(batch);
+          } while (batch.length > 0);
+          for (const child of all) await processEntry(child, newBase);
+        } catch (err) {
+          console.warn("Skipped folder:", entry.name, err);
+        }
       } else {
         console.warn("Unknown entry type:", entry);
       }
