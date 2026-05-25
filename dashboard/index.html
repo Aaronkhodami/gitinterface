@@ -6,6 +6,7 @@
   <title>Dashboard</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="./theme.js"></script>
+  <script src="./version.js"></script>
   <style>
     /* ── Nav cards ── */
     .nav-cards {
@@ -68,6 +69,97 @@
       transition: color .12s;
     }
     .pw-eye:hover { color: var(--text-2); }
+
+    /* ── Update section ── */
+    .update-section {
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      min-height: 48px;
+    }
+    .update-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .update-badge {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding: 4px 12px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .update-badge.ok {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border: 1px solid var(--success-border);
+    }
+    .update-badge.new {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffc107;
+    }
+    [data-theme="dark"] .update-badge.new {
+      background: #332b00;
+      color: #ffc107;
+      border-color: #665500;
+    }
+    .update-badge.err {
+      background: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid var(--error-border);
+    }
+    .update-meta {
+      font-size: .78rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .update-meta strong {
+      color: var(--text-2);
+      font-weight: 600;
+    }
+    .update-btn {
+      padding: 7px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, opacity .15s;
+    }
+    .update-btn.primary {
+      background: var(--accent);
+      color: white;
+    }
+    .update-btn.primary:hover {
+      background: var(--accent-hover);
+    }
+    .update-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    .update-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
   </style>
 </head>
 <body>
@@ -100,6 +192,14 @@
       <section class="section-panel">
         <div class="section-header">
           <h2>Dashboard</h2>
+        </div>
+
+        <!-- Update status -->
+        <div id="updateSection" class="update-section">
+          <div class="update-info">
+            <span class="update-spinner"></span>
+            <span class="update-meta">Checking for updates...</span>
+          </div>
         </div>
 
         <!-- Quick-access nav cards -->
@@ -271,6 +371,69 @@
         btn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
       });
     });
+
+    // ── Update checker ─────────────────────────────────────────────────────
+    const UPDATE_REPO = "Aaronkhodami/gitinterface";
+    const UPDATE_BRANCH = "master";
+
+    (async function checkForUpdates() {
+      const section = document.getElementById("updateSection");
+      const currentSha = window.INTERFACE_VERSION_SHA;
+      const currentDate = window.INTERFACE_VERSION_DATE;
+
+      if (!currentSha) {
+        section.innerHTML = `<div class="update-info">
+          <span class="update-badge err">! No version info</span>
+          <span class="update-meta">version.js not loaded</span>
+        </div>`;
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("portable-github-token");
+        const headers = { Accept: "application/vnd.github.v3+json" };
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(
+          `https://api.github.com/repos/${UPDATE_REPO}/commits/${UPDATE_BRANCH}`,
+          { headers }
+        );
+        if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
+
+        const data = await res.json();
+        const latestSha = data.sha;
+        const latestDate = data.commit.committer.date.split("T")[0];
+        const latestMsg = data.commit.message.split("\n")[0];
+
+        if (latestSha === currentSha) {
+          section.innerHTML = `<div class="update-info">
+            <span class="update-badge ok">&#10003; Up to date</span>
+            <span class="update-meta">${currentSha.slice(0, 7)} &middot; ${currentDate}</span>
+          </div>`;
+        } else {
+          section.innerHTML = `<div class="update-info">
+            <span class="update-badge new">&#9888; Update available</span>
+            <span class="update-meta">
+              <strong>Current:</strong> ${currentSha.slice(0, 7)} (${currentDate})<br>
+              <strong>Latest:</strong> ${latestSha.slice(0, 7)} (${latestDate}) &mdash; ${latestMsg}
+            </span>
+          </div>
+          <button class="update-btn primary" onclick="runUpdate()">Update Now</button>`;
+        }
+      } catch (err) {
+        section.innerHTML = `<div class="update-info">
+          <span class="update-badge err">&#10007; Check failed</span>
+          <span class="update-meta">${err.message}</span>
+        </div>`;
+      }
+    })();
+
+    function runUpdate() {
+      document.getElementById("updateSection").innerHTML = `<div class="update-info">
+        <span class="update-meta">Opening updater...</span>
+      </div>`;
+      window.open("../update.bat");
+    }
 
   </script>
 </body>
