@@ -2,13 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard</title>
+  <title>Portable Workspace</title>
+  <HTA:APPLICATION
+    ID="ws"
+    APPLICATIONNAME="PortableWorkspace"
+    WINDOWSTATE="normal"
+    INNERBORDER="no"
+    NAVIGABLE="yes"
+    CONTEXTMENU="yes"
+    SELECTION="yes"
+    SINGLEINSTANCE="yes"
+  />
   <link rel="stylesheet" href="./styles.css" />
   <script src="./theme.js"></script>
   <script src="./version.js"></script>
+  <script language="VBScript">
+Function GetRepoRoot()
+  Dim p, fso
+  Set fso = CreateObject("Scripting.FileSystemObject")
+  p = Window.location.pathname
+  If Left(p, 1) = "/" Then p = Mid(p, 2)
+  p = Replace(p, "/", "\")
+  GetRepoRoot = fso.GetParentFolderName(fso.GetParentFolderName(p))
+End Function
+
+Function DoUpdate()
+  Dim shell, fso, repo, sha, d, content, ec
+  Set shell = CreateObject("WScript.Shell")
+  Set fso = CreateObject("Scripting.FileSystemObject")
+  repo = GetRepoRoot()
+
+  ec = shell.Run("cmd /c cd /d """ & repo & """ && git pull origin master", 0, True)
+  If ec <> 0 Then
+    DoUpdate = "ERROR:" & ec
+    Exit Function
+  End If
+
+  sha = Trim(shell.Exec("cmd /c cd /d """ & repo & """ && git log -1 --format=%H").StdOut.ReadAll)
+  d = Trim(shell.Exec("cmd /c cd /d """ & repo & """ && git log -1 --format=%ad --date=short").StdOut.ReadAll)
+
+  content = "// -- Interface version ------------------------------------------------------" & vbCrLf
+  content = content & "// This file is managed automatically by git commit hook." & vbCrLf
+  content = content & "window.INTERFACE_VERSION_DATE = """ & d & """;" & vbCrLf
+  content = content & "window.INTERFACE_VERSION_SHA  = """ & sha & """;" & vbCrLf
+
+  fso.CreateTextFile(repo & "\dashboard\version.js", True).Write content
+  DoUpdate = Left(sha, 7) & " (" & d & ")"
+End Function
+  </script>
   <style>
-    /* ── Nav cards ── */
     .nav-cards {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -27,7 +69,6 @@
     .nav-card .nc-title { font-size: .9rem; font-weight: 600; color: var(--text); }
     .nav-card .nc-desc  { font-size: .78rem; color: var(--text-muted); }
 
-    /* ── Credentials form ── */
     .creds-section {
       border-top: 1px solid var(--border-3);
       padding-top: 22px;
@@ -57,7 +98,6 @@
     }
     #credsSubmitBtn { width: auto; padding: 9px 24px; }
 
-    /* ── Show-password wrapper ── */
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-right: 38px; }
     .pw-eye {
@@ -70,7 +110,6 @@
     }
     .pw-eye:hover { color: var(--text-2); }
 
-    /* ── Update section ── */
     .update-section {
       background: var(--surface-2);
       border: 1px solid var(--border-2);
@@ -174,7 +213,7 @@
       </div>
 
       <div class="menu-list">
-        <a href="./index.html" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <a href="./dashboard.hta" class="menu-button active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
         <a href="./autenticate/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>Authenticate GitHub</a>
         <a href="./git-data/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Git Download</a>
         <a href="./git-upload/index.html" class="menu-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Git Upload</a>
@@ -194,7 +233,6 @@
           <h2>Dashboard</h2>
         </div>
 
-        <!-- Update status -->
         <div id="updateSection" class="update-section">
           <div class="update-info">
             <span class="update-spinner"></span>
@@ -202,7 +240,6 @@
           </div>
         </div>
 
-        <!-- Quick-access nav cards -->
         <div class="nav-cards">
           <a href="./autenticate/index.html" class="nav-card">
             <div class="nc-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></div>
@@ -236,7 +273,6 @@
           </a>
         </div>
 
-        <!-- Change credentials -->
         <div class="creds-section">
           <h3>Change Login Credentials</h3>
           <p>Updates take effect on your next sign-in. Credentials are stored locally in your browser.</p>
@@ -276,33 +312,29 @@
   </div>
 
   <script>
-    const sessionUserRaw = sessionStorage.getItem("portable-user");
+    var sessionUserRaw = sessionStorage.getItem("portable-user");
     if (!sessionUserRaw) {
       location.href = "../index.html";
     }
-    const welcomeName = document.getElementById("welcomeName");
-    const sessionUser = sessionUserRaw ? JSON.parse(sessionUserRaw) : null;
-    welcomeName.textContent = `welcome ${sessionUser?.username || "admin"}`;
+    var welcomeName = document.getElementById("welcomeName");
+    var sessionUser = sessionUserRaw ? JSON.parse(sessionUserRaw) : null;
+    welcomeName.textContent = "welcome " + (sessionUser?.username || "admin");
 
-    document.getElementById("signOutButton").addEventListener("click", () => {
+    document.getElementById("signOutButton").addEventListener("click", function() {
       sessionStorage.removeItem("portable-user");
       location.href = "../index.html";
     });
 
-    // ── Change credentials ─────────────────────────────────────────────────
-    const CREDS_KEY = "portable-credentials";
-
-    // Pre-fill username from session
+    var CREDS_KEY = "portable-credentials";
     document.getElementById("newUsername").value = sessionUser?.username || "";
 
-    document.getElementById("credsForm").addEventListener("submit", (e) => {
+    document.getElementById("credsForm").addEventListener("submit", function(e) {
       e.preventDefault();
-      const statusEl = document.getElementById("credsStatus");
-      const newUser = document.getElementById("newUsername").value.trim();
-      const newPass = document.getElementById("newPassword").value;
-      const confirmPass = document.getElementById("confirmPassword").value;
+      var statusEl = document.getElementById("credsStatus");
+      var newUser = document.getElementById("newUsername").value.trim();
+      var newPass = document.getElementById("newPassword").value;
+      var confirmPass = document.getElementById("confirmPassword").value;
 
-      // Validation
       if (!newUser) {
         statusEl.textContent = "Username cannot be empty.";
         statusEl.className = "alert error show";
@@ -314,10 +346,9 @@
         return;
       }
 
-      // Load existing saved creds to preserve password if not changing
-      const existing = JSON.parse(localStorage.getItem(CREDS_KEY) || "null");
-      const basePass = existing?.password || window.PortableDB?.users?.[0]?.password || "";
-      const finalPass = newPass || basePass;
+      var existing = JSON.parse(localStorage.getItem(CREDS_KEY) || "null");
+      var basePass = existing?.password || window.PortableDB?.users?.[0]?.password || "";
+      var finalPass = newPass || basePass;
 
       if (!finalPass) {
         statusEl.textContent = "Password cannot be empty.";
@@ -326,32 +357,28 @@
       }
 
       localStorage.setItem(CREDS_KEY, JSON.stringify({ username: newUser, password: finalPass }));
-
-      // Update session username
-      const updatedSession = { ...sessionUser, username: newUser, displayName: newUser };
+      var updatedSession = Object.assign({}, sessionUser, { username: newUser, displayName: newUser });
       sessionStorage.setItem("portable-user", JSON.stringify(updatedSession));
-      document.getElementById("welcomeName").textContent = `welcome ${newUser}`;
+      document.getElementById("welcomeName").textContent = "welcome " + newUser;
 
-      // Clear password fields
       document.getElementById("newPassword").value = "";
       document.getElementById("confirmPassword").value = "";
 
       statusEl.textContent = "Credentials saved. Use them on your next sign-in.";
       statusEl.className = "alert success show";
-      setTimeout(() => { statusEl.className = "alert"; }, 4000);
+      setTimeout(function() { statusEl.className = "alert"; }, 4000);
     });
 
-    // ── Live password-match indicator ─────────────────────────────────────
     function checkPasswordMatch() {
-      const hint = document.getElementById("pwMatchHint");
-      const p1 = document.getElementById("newPassword").value;
-      const p2 = document.getElementById("confirmPassword").value;
+      var hint = document.getElementById("pwMatchHint");
+      var p1 = document.getElementById("newPassword").value;
+      var p2 = document.getElementById("confirmPassword").value;
       if (!p2) { hint.style.display = "none"; return; }
       if (p1 === p2) {
-        hint.textContent = "✓ Passwords match";
+        hint.textContent = "\u2713 Passwords match";
         hint.style.color = "var(--success-text, #1f6a3c)";
       } else {
-        hint.textContent = "✕ Passwords do not match";
+        hint.textContent = "\u2715 Passwords do not match";
         hint.style.color = "var(--error-text, #9f3a2f)";
       }
       hint.style.display = "block";
@@ -359,82 +386,95 @@
     document.getElementById("newPassword").addEventListener("input", checkPasswordMatch);
     document.getElementById("confirmPassword").addEventListener("input", checkPasswordMatch);
 
-    // ── Show-password toggles ─────────────────────────────────────────────
-    document.querySelectorAll(".pw-eye").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const input = document.getElementById(btn.dataset.target);
-        const isHidden = input.type === "password";
+    document.querySelectorAll(".pw-eye").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var input = document.getElementById(btn.dataset.target);
+        var isHidden = input.type === "password";
         input.type = isHidden ? "text" : "password";
         btn.innerHTML = isHidden
-          ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
-          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+          ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+          : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
         btn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
       });
     });
 
     // ── Update checker ─────────────────────────────────────────────────────
-    const UPDATE_REPO = "Aaronkhodami/gitinterface";
-    const UPDATE_BRANCH = "master";
+    var UPDATE_REPO = "Aaronkhodami/gitinterface";
+    var UPDATE_BRANCH = "master";
 
     (async function checkForUpdates() {
-      const section = document.getElementById("updateSection");
-      const currentSha = window.INTERFACE_VERSION_SHA;
-      const currentDate = window.INTERFACE_VERSION_DATE;
+      var section = document.getElementById("updateSection");
+      var currentSha = window.INTERFACE_VERSION_SHA;
+      var currentDate = window.INTERFACE_VERSION_DATE;
 
       if (!currentSha) {
-        section.innerHTML = `<div class="update-info">
-          <span class="update-badge err">! No version info</span>
-          <span class="update-meta">version.js not loaded</span>
-        </div>`;
+        section.innerHTML = '<div class="update-info">' +
+          '<span class="update-badge err">! No version info</span>' +
+          '<span class="update-meta">version.js not loaded</span>' +
+        '</div>';
         return;
       }
 
       try {
-        const token = localStorage.getItem("portable-github-token");
-        const headers = { Accept: "application/vnd.github.v3+json" };
-        if (token) headers.Authorization = `Bearer ${token}`;
+        var token = localStorage.getItem("portable-github-token");
+        var headers = { Accept: "application/vnd.github.v3+json" };
+        if (token) headers.Authorization = "Bearer " + token;
 
-        const res = await fetch(
-          `https://api.github.com/repos/${UPDATE_REPO}/commits/${UPDATE_BRANCH}`,
-          { headers }
+        var res = await fetch(
+          "https://api.github.com/repos/" + UPDATE_REPO + "/commits/" + UPDATE_BRANCH,
+          { headers: headers }
         );
-        if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error("GitHub API: " + res.status + " " + res.statusText);
 
-        const data = await res.json();
-        const latestSha = data.sha;
-        const latestDate = data.commit.committer.date.split("T")[0];
-        const latestMsg = data.commit.message.split("\n")[0];
+        var data = await res.json();
+        var latestSha = data.sha;
+        var latestDate = data.commit.committer.date.split("T")[0];
+        var latestMsg = data.commit.message.split("\n")[0];
 
         if (latestSha === currentSha) {
-          section.innerHTML = `<div class="update-info">
-            <span class="update-badge ok">&#10003; Up to date</span>
-            <span class="update-meta">${currentSha.slice(0, 7)} &middot; ${currentDate}</span>
-          </div>`;
+          section.innerHTML = '<div class="update-info">' +
+            '<span class="update-badge ok">\u2713 Up to date</span>' +
+            '<span class="update-meta">' + currentSha.slice(0, 7) + ' &middot; ' + currentDate + '</span>' +
+          '</div>';
         } else {
-          section.innerHTML = `<div class="update-info">
-            <span class="update-badge new">&#9888; Update available</span>
-            <span class="update-meta">
-              <strong>Current:</strong> ${currentSha.slice(0, 7)} (${currentDate})<br>
-              <strong>Latest:</strong> ${latestSha.slice(0, 7)} (${latestDate}) &mdash; ${latestMsg}
-            </span>
-          </div>
-          <button class="update-btn primary" onclick="runUpdate()">Update Now</button>`;
+          section.innerHTML = '<div class="update-info">' +
+            '<span class="update-badge new">\u26A0 Update available</span>' +
+            '<span class="update-meta">' +
+              '<strong>Current:</strong> ' + currentSha.slice(0, 7) + ' (' + currentDate + ')<br>' +
+              '<strong>Latest:</strong> ' + latestSha.slice(0, 7) + ' (' + latestDate + ') &mdash; ' + latestMsg +
+            '</span>' +
+          '</div>' +
+          '<button class="update-btn primary" onclick="runUpdate()">Update Now</button>';
         }
       } catch (err) {
-        section.innerHTML = `<div class="update-info">
-          <span class="update-badge err">&#10007; Check failed</span>
-          <span class="update-meta">${err.message}</span>
-        </div>`;
+        section.innerHTML = '<div class="update-info">' +
+          '<span class="update-badge err">\u2717 Check failed</span>' +
+          '<span class="update-meta">' + err.message + '</span>' +
+        '</div>';
       }
     })();
 
     function runUpdate() {
-      document.getElementById("updateSection").innerHTML = `<div class="update-info">
-        <span class="update-badge new">&#9888; Open dashboard.hta</span>
-        <span class="update-meta">Double-click <strong>dashboard.hta</strong> in the dashboard folder to update</span>
-      </div>`;
-    }
+      var section = document.getElementById("updateSection");
+      section.innerHTML = '<div class="update-info">' +
+        '<span class="update-badge new">Updating...</span>' +
+        '<span class="update-meta">Running git pull...</span>' +
+      '</div>';
 
+      var result = DoUpdate();
+      if (result.indexOf("ERROR:") === 0) {
+        section.innerHTML = '<div class="update-info">' +
+          '<span class="update-badge err">\u2717 Update failed</span>' +
+          '<span class="update-meta">Exit code: ' + result.replace("ERROR:", "") + '</span>' +
+        '</div>';
+      } else {
+        section.innerHTML = '<div class="update-info">' +
+          '<span class="update-badge ok">\u2713 Updated</span>' +
+          '<span class="update-meta">' + result + '</span>' +
+        '</div>';
+        setTimeout(function() { location.reload(); }, 1500);
+      }
+    }
   </script>
 </body>
 </html>
