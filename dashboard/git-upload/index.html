@@ -71,6 +71,13 @@
     .empty-cell   { padding:28px 12px; color:#bbb; font-size:.875rem; text-align:center; }
     .loading-cell { padding:18px 12px; color:#bbb; font-size:.875rem; text-align:center; }
 
+    /* ── Drag & drop for move ── */
+    .file-table tr[draggable="true"] { cursor:grab; }
+    .file-table tr[draggable="true"]:active { cursor:grabbing; }
+    .file-table tr.drop-allow td { background:#e8f5e9 !important; }
+    .file-table tr.drop-allow { outline:2px solid #4caf50; outline-offset:-1px; border-radius:4px; }
+    .file-table tr.drag-self td { opacity:.4; }
+
     /* ── Drop zone ── */
     .drop-zone {
       border: 2px dashed #ccc;
@@ -319,6 +326,7 @@
     let currentItems = [];
     let uploadQueue   = []; // [{file, remotePath, displayName}]
     let selectedPaths = new Set(); // paths of checked items in current directory
+    let dragItem = null; // item being dragged for move
 
     // ── API helpers ────────────────────────────────────────────────────────
     function ghHeaders(extra = {}) {
@@ -594,6 +602,33 @@
       currentItems.forEach(item => {
         const isDir = item.type === "dir";
         const tr    = document.createElement("tr");
+
+        tr.draggable = true;
+        tr.addEventListener("dragstart", () => {
+          dragItem = item;
+          tr.classList.add("drag-self");
+        });
+        tr.addEventListener("dragend", () => {
+          dragItem = null;
+          tbody.querySelectorAll("tr.drop-allow").forEach(el => el.classList.remove("drop-allow"));
+          tbody.querySelectorAll("tr.drag-self").forEach(el => el.classList.remove("drag-self"));
+        });
+
+        if (isDir) {
+          tr.addEventListener("dragover", e => { e.preventDefault(); });
+          tr.addEventListener("dragenter", e => {
+            e.preventDefault();
+            if (dragItem && dragItem.path !== item.path && !item.path.startsWith(dragItem.path + "/")) tr.classList.add("drop-allow");
+          });
+          tr.addEventListener("dragleave", () => tr.classList.remove("drop-allow"));
+          tr.addEventListener("drop", e => {
+            e.preventDefault();
+            tr.classList.remove("drop-allow");
+            if (!dragItem || dragItem.path === item.path) return;
+            if (item.path.startsWith(dragItem.path + "/")) { setStatus("Cannot move a folder into itself.", "bad"); return; }
+            handleDropOnFolder(item, dragItem);
+          });
+        }
 
         // Checkbox
         const tdCheck = document.createElement("td");
@@ -913,6 +948,109 @@
         browseTo(currentPath);
       } catch (err) {
         setStatus(`Rename failed: ${err.message}`, "bad");
+      }
+      setLocked(false);
+    }
+
+    // ── Drag-drop move ──────────────────────────────────────────────────────
+    async function handleDropOnFolder(destFolder, draggedItem) {
+      const isDir = draggedItem.type === "dir";
+      const commitMsg = document.getElementById("commitMsg").value.trim() || `Move ${draggedItem.name}`;
+
+      setLocked(true);
+      setStatus(`Moving "${draggedItem.name}"…`, "info");
+
+      try {
+        if (!isDir) {
+          // ── Single file move ──
+          const newPath = `${destFolder.path}/${draggedItem.name}`;
+          const data    = await getFileContent(draggedItem);
+          const putRes  = await fetch(
+            `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(newPath)}`,
+            {
+              method: "PUT",
+              headers: ghHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ message: commitMsg, content: data.content })
+            }
+          );
+          if (!putRes.ok) throw new Error(`Create at destination failed: ${(await putRes.json()).message}`);
+          const delRes = await fetch(
+            `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(draggedItem.path)}`,
+            {
+              method: "DELETE",
+              headers: ghHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ message: commitMsg, sha: data.sha })
+            }
+          );
+          if (!delRes.ok) throw new Error(`Delete original failed: ${(await delRes.json()).message}`);
+          setStatus(`✓ Moved "${draggedItem.name}" → ${destFolder.path}`, "ok");
+        } else {
+          // ── Folder move (recursive) ──
+          const files = [];
+          await collectAllFilesInDir(draggedItem.path, files);
+          if (!files.length) {
+            const newDirPath = `${destFolder.path}/${draggedItem.name}`;
+            const keepPath   = `${newDirPath}/.gitkeep`;
+            let oldKeepSha = null;
+            try {
+              const existing = await getFileContent({ ...draggedItem, path: `${draggedItem.path}/.gitkeep` });
+              oldKeepSha = existing.sha;
+            } catch {}
+            const putRes = await fetch(
+              `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(keepPath)}`,
+              {
+                method: "PUT",
+                headers: ghHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify({ message: commitMsg, content: "" })
+              }
+            );
+            if (!putRes.ok) throw new Error(`Move folder failed: ${(await putRes.json()).message}`);
+            if (oldKeepSha) {
+              await fetch(
+                `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(draggedItem.path + "/.gitkeep")}`,
+                {
+                  method: "DELETE",
+                  headers: ghHeaders({ "Content-Type": "application/json" }),
+                  body: JSON.stringify({ message: commitMsg, sha: oldKeepSha })
+                }
+              );
+            }
+            setStatus(`✓ Moved folder "${draggedItem.name}" → ${destFolder.path}`, "ok");
+          } else {
+            let done = 0, errors = 0;
+            for (const file of files) {
+              setStatus(`Moving ${done + 1}/${files.length}…`, "info");
+              try {
+                const data    = await getFileContent(file);
+                const newPath = file.path.replace(draggedItem.path, `${destFolder.path}/${draggedItem.name}`);
+                await fetch(
+                  `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(newPath)}`,
+                  {
+                    method: "PUT",
+                    headers: ghHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ message: commitMsg, content: data.content })
+                  }
+                );
+                await fetch(
+                  `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(file.path)}`,
+                  {
+                    method: "DELETE",
+                    headers: ghHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ message: commitMsg, sha: data.sha })
+                  }
+                );
+                done++;
+              } catch {
+                errors++;
+                done++;
+              }
+            }
+            setStatus(errors ? `${done - errors} moved, ${errors} failed.` : `✓ Moved folder "${draggedItem.name}" → ${destFolder.path} (${done} files)`, errors ? "bad" : "ok");
+          }
+        }
+        browseTo(currentPath);
+      } catch (err) {
+        setStatus(`Move failed: ${err.message}`, "bad");
       }
       setLocked(false);
     }
