@@ -59,11 +59,14 @@
     .col-check { width:32px; }
     .col-icon  { width:28px; }
     .col-name  { }
-    .col-del   { width:36px; text-align:right; white-space:nowrap; }
+    .col-actions { width:68px; text-align:right; white-space:nowrap; }
     .file-table th { padding:6px 10px; border-bottom:2px solid #e8e8e8; font-size:.75rem; color:#999; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
     .nav-btn { background:none; border:none; cursor:pointer; font:inherit; font-size:.875rem; color:#0d6b57; padding:0; }
     .nav-btn:hover { text-decoration:underline; }
-    .del-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:1rem; padding:2px 5px; border-radius:4px; line-height:1; transition:color .12s,background .12s; }
+    .act-btn { background:none; border:none; cursor:pointer; font-size:.9rem; padding:2px 5px; border-radius:4px; line-height:1; transition:color .12s,background .12s; }
+    .rename-btn { color:#ccc; }
+    .rename-btn:hover { color:#0d6b57; background:#edf9f1; }
+    .del-btn { color:#ccc; font-size:1rem; padding:2px 5px; border-radius:4px; line-height:1; transition:color .12s,background .12s; }
     .del-btn:hover { color:#9f3a2f; background:#fff0ec; }
     .empty-cell   { padding:28px 12px; color:#bbb; font-size:.875rem; text-align:center; }
     .loading-cell { padding:18px 12px; color:#bbb; font-size:.875rem; text-align:center; }
@@ -582,7 +585,7 @@
         <th class="col-check"><input type="checkbox" id="selectAllChk" title="Select / deselect all" /></th>
         <th class="col-icon"></th>
         <th class="col-name">Name</th>
-        <th class="col-del"></th>`;
+        <th class="col-actions"></th>`;
       thead.appendChild(thRow);
       table.appendChild(thead);
 
@@ -632,17 +635,25 @@
           tdName.textContent = item.name;
         }
 
+        // Rename button (both files AND folders)
+        const tdAct  = document.createElement("td");
+        tdAct.className = "col-actions";
+        const renameBtn = document.createElement("button");
+        renameBtn.className   = "act-btn rename-btn";
+        renameBtn.textContent = "✏️";
+        renameBtn.title       = isDir ? `Rename folder "${item.name}"` : `Rename file "${item.name}"`;
+        renameBtn.onclick     = () => renameItem(item);
+        tdAct.appendChild(renameBtn);
+
         // Delete button (both files AND folders)
-        const tdDel  = document.createElement("td");
-        tdDel.className = "col-del";
         const delBtn = document.createElement("button");
-        delBtn.className   = "del-btn";
+        delBtn.className   = "act-btn del-btn";
         delBtn.textContent = "🗑";
         delBtn.title       = isDir ? `Delete folder "${item.name}" and all its contents` : `Delete "${item.name}"`;
         delBtn.onclick     = () => deleteSingleItem(item);
-        tdDel.appendChild(delBtn);
+        tdAct.appendChild(delBtn);
 
-        tr.append(tdCheck, tdIcon, tdName, tdDel);
+        tr.append(tdCheck, tdIcon, tdName, tdAct);
         tbody.appendChild(tr);
       });
 
@@ -772,6 +783,138 @@
       document.getElementById("delProgFill").style.width = pct + "%";
       document.getElementById("delProgText").textContent =
         `Deleting ${done} / ${total} — ${label}`;
+    }
+
+    // ── Rename file / folder ────────────────────────────────────────────────
+    async function getFileContent(item) {
+      const r = await fetch(
+        `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(item.path)}`,
+        { headers: ghHeaders() }
+      );
+      if (!r.ok) throw new Error(`Failed to read "${item.name}": ${r.status}`);
+      return r.json();
+    }
+
+    // Compute new path by replacing the old top-level folder name with the new one
+    function rebasePath(oldPath, oldTopName, newTopName) {
+      const parts = oldPath.split("/");
+      const idx   = parts.indexOf(oldTopName);
+      if (idx !== -1) parts[idx] = newTopName;
+      return parts.join("/");
+    }
+
+    async function renameItem(item) {
+      const isDir = item.type === "dir";
+      const newName = prompt(`New name for ${isDir ? "folder" : "file"} "${item.name}":`, item.name);
+      if (!newName || newName === item.name) return;
+      if (/[\\/:*?"<>|]/.test(newName)) {
+        setStatus("Name contains invalid characters.", "bad"); return;
+      }
+      const commitMsg = document.getElementById("commitMsg").value.trim() || `Rename ${item.name} → ${newName}`;
+
+      setLocked(true);
+      setStatus(`Renaming ${isDir ? "folder" : "file"} "${item.name}"…`, "info");
+
+      try {
+        if (!isDir) {
+          // ── Single file rename ──
+          const parentPath = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
+          const newPath    = parentPath ? `${parentPath}/${newName}` : newName;
+          const data       = await getFileContent(item);
+          const putRes = await fetch(
+            `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(newPath)}`,
+            {
+              method: "PUT",
+              headers: ghHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ message: commitMsg, content: data.content })
+            }
+          );
+          if (!putRes.ok) throw new Error(`Create "${newName}" failed: ${(await putRes.json()).message}`);
+          const delRes = await fetch(
+            `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(item.path)}`,
+            {
+              method: "DELETE",
+              headers: ghHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ message: commitMsg, sha: data.sha })
+            }
+          );
+          if (!delRes.ok) throw new Error(`Delete old "${item.name}" failed: ${(await delRes.json()).message}`);
+          setStatus(`✓ Renamed "${item.name}" → "${newName}"`, "ok");
+        } else {
+          // ── Folder rename ──
+          const files = [];
+          await collectAllFilesInDir(item.path, files);
+          if (!files.length) {
+            // Create a .gitkeep in new folder name and delete the old one
+            const newDirPath = rebasePath(item.path, item.name, newName);
+            const keepPath   = `${newDirPath}/.gitkeep`;
+            // Get the sha of any .gitkeep in old folder if it exists, else just upload
+            let oldKeepSha = null;
+            try {
+              const existing = await getFileContent({ ...item, path: `${item.path}/.gitkeep` });
+              oldKeepSha = existing.sha;
+            } catch {}
+            const putRes = await fetch(
+              `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(keepPath)}`,
+              {
+                method: "PUT",
+                headers: ghHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify({ message: commitMsg, content: "" })
+              }
+            );
+            if (!putRes.ok) throw new Error(`Create folder "${newName}" failed: ${(await putRes.json()).message}`);
+            if (oldKeepSha) {
+              await fetch(
+                `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(item.path + "/.gitkeep")}`,
+                {
+                  method: "DELETE",
+                  headers: ghHeaders({ "Content-Type": "application/json" }),
+                  body: JSON.stringify({ message: commitMsg, sha: oldKeepSha })
+                }
+              );
+            }
+            setStatus(`✓ Renamed folder "${item.name}" → "${newName}"`, "ok");
+          } else {
+            let done = 0, errors = 0, total = files.length;
+            for (const file of files) {
+              setStatus(`Renaming ${done + 1}/${total}…`, "info");
+              try {
+                const data    = await getFileContent(file);
+                const newPath = rebasePath(file.path, item.name, newName);
+                await fetch(
+                  `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(newPath)}`,
+                  {
+                    method: "PUT",
+                    headers: ghHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ message: commitMsg, content: data.content })
+                  }
+                );
+                await fetch(
+                  `https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(file.path)}`,
+                  {
+                    method: "DELETE",
+                    headers: ghHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ message: commitMsg, sha: data.sha })
+                  }
+                );
+                done++;
+              } catch {
+                errors++;
+                done++;
+              }
+            }
+            if (!errors) {
+              setStatus(`✓ Renamed folder "${item.name}" → "${newName}" (${done} files)`, "ok");
+            } else {
+              setStatus(`${done - errors} files renamed, ${errors} failed.`, "bad");
+            }
+          }
+        }
+        browseTo(currentPath);
+      } catch (err) {
+        setStatus(`Rename failed: ${err.message}`, "bad");
+      }
+      setLocked(false);
     }
 
     // ── Upload queue management ────────────────────────────────────────────
