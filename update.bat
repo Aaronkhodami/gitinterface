@@ -1,4 +1,6 @@
 @echo off
+setlocal EnableExtensions
+
 title Portable Workspace Updater
 pushd "%~dp0" || (
   echo.
@@ -6,26 +8,41 @@ pushd "%~dp0" || (
   pause
   exit /b 1
 )
+
 echo.
 echo === Updating Portable Workspace ===
 echo.
 git pull origin master
-if %errorlevel% neq 0 (
+if errorlevel 1 (
   echo.
   echo Update failed!
   popd
   pause
   exit /b 1
 )
-for /f "tokens=*" %%a in ('git log -1 --format="%H"') do set "sha=%%a"
-for /f "tokens=*" %%a in ('git log -1 --format="%ad" --date=short') do set "d=%%a"
-(
+
+for /f "usebackq delims=" %%a in (`git log -1 --format^=%%H`) do set "sha=%%a"
+for /f "usebackq delims=" %%a in (`git log -1 --date^=short --format^=%%ad`) do set "d=%%a"
+
+if not defined sha (
+  echo.
+  echo Could not read current git commit hash.
+  popd
+  pause
+  exit /b 1
+)
+
+> "dashboard\version.js" (
   echo // -- Interface version ------------------------------------------------------
   echo // This file is managed automatically by git commit hook.
   echo window.INTERFACE_VERSION_DATE = "%d%";
   echo window.INTERFACE_VERSION_SHA  = "%sha%";
-) > "dashboard\version.js"
+)
+
+set "shortSha=%sha:~0,7%"
 echo.
-echo Updated to %sha:~0,7% (%d%^)
+echo Updated to %shortSha% (%d%)
+
 popd
 timeout /t 3 /nobreak >nul
+endlocal
