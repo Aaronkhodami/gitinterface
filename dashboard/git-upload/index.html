@@ -1211,37 +1211,83 @@
     dropZone.addEventListener("drop", async e => {
       e.preventDefault();
       dropZone.classList.remove("drag-over");
-      if (!currentRepo) { setStatus("Select a repository first.", "bad"); return; }
+      if (!currentRepo) { setStatus("Select a repository before dropping.", "bad"); return; }
 
-      // IMPORTANT: DataTransferItem objects are invalidated after the first await.
-      // Collect all entries/files synchronously before doing any async work.
-      const entries = [];
-      const plainFiles = [];
+      // Collect entries synchronously — DataTransfer dies after the first await.
+      const entries    = [];    // FileSystemEntry objects
+      const plainFiles = [];    // File objects (fallback)
+
       for (const item of e.dataTransfer.items) {
         if (item.kind !== "file") continue;
         const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-        if (entry) entries.push(entry);
-        else {
+        if (entry && entry.isDirectory) {
+          // Folders must be walked via the FileSystem Entry API
+          entries.push(entry);
+        } else {
+          // For files, use getAsFile() — avoids the Chromium "URI malformed" bug
+          // that entry.file() triggers when Windows paths can't be URI-encoded
           const f = item.getAsFile();
           if (f) plainFiles.push(f);
         }
       }
 
-      const beforeCount = uploadQueue.length;
+      // Fallback: items API gave nothing — try the simpler files list
+      if (!entries.length && !plainFiles.length) {
+        for (const f of e.dataTransfer.files) plainFiles.push(f);
+      }
 
-      // Now process everything asynchronously
-      try {
-        for (const f of plainFiles) addToQueue(f, f.name);
-        for (const entry of entries) await processEntry(entry, "");
-      } catch (err) {
-        setStatus(`Error processing drop: ${err.message}`, "bad");
+      if (!entries.length && !plainFiles.length) {
+        setStatus(`Drop received (${e.dataTransfer.items.length} items, ${e.dataTransfer.files.length} files) but couldn't read any entries. Try the "Add folder" button.`, "bad");
         return;
       }
 
-      if (uploadQueue.length === beforeCount) {
-        setStatus("No items were added. Try using the \"Add folder\" button instead, or drag individual files.", "bad");
+      const before = uploadQueue.length;
+      const errors = [];
+
+      for (const f of plainFiles) addToQueue(f, f.name);
+      for (const entry of entries) {
+        await walkEntry(entry, "", errors);
+      }
+
+      if (uploadQueue.length === before) {
+        const detail = errors.length ? ` (${errors.length} error${errors.length > 1 ? "s" : ""}: ${errors[0]})` : "";
+        setStatus(`No files found inside the dropped item${detail}. Try the "Add folder" button.`, "bad");
       }
     });
+
+    async function walkEntry(entry, basePath, errors) {
+      if (entry.isFile) {
+        try {
+          // entry.file() can throw "URI malformed" in Chromium for certain paths;
+          // if it fails, we skip the file and record the error.
+          const file = await new Promise((res, rej) => entry.file(res, rej));
+          const rel  = basePath ? `${basePath}/${entry.name}` : entry.name;
+          addToQueue(file, rel);
+        } catch (err) {
+          errors.push(`${entry.name}: ${err.message || String(err)}`);
+          console.warn("Skipped file:", entry.name, err);
+        }
+        return;
+      }
+      if (entry.isDirectory) {
+        const newBase = basePath ? `${basePath}/${entry.name}` : entry.name;
+        try {
+          const reader = entry.createReader();
+          const all = [];
+          let batch;
+          do {
+            batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+            for (const c of batch) all.push(c);
+          } while (batch.length);
+          for (const c of all) await walkEntry(c, newBase, errors);
+        } catch (err) {
+          errors.push(err.message || String(err));
+          console.warn("Skipped folder:", entry.name, err);
+        }
+        return;
+      }
+      errors.push(`unknown entry type (${entry.name})`);
+    }
 
     // Recursively walk a FileSystemEntry tree (handles nested folders)
     async function processEntry(entry, basePath) {

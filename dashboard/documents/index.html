@@ -6,6 +6,7 @@
   <title>Documents</title>
   <link rel="stylesheet" href="../styles.css" />
   <script src="../theme.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     .section-panel { max-width: none; }
 
@@ -228,6 +229,37 @@
       .docs-actions { flex-direction:column; }
       .docs-actions button { width:100%; }
     }
+
+    /* File browser */
+    .file-browser {
+      border:1px solid #e0e0e0; border-radius:10px; background:#fff;
+      margin-bottom:16px; max-height:180px; overflow:hidden;
+      display:flex; flex-direction:column;
+    }
+    .fb-header {
+      padding:10px 14px; background:#f7f8fa; border-bottom:1px solid #e4e4e4;
+      display:flex; justify-content:space-between; align-items:center; flex-shrink:0;
+    }
+    .fb-title { font-size:.86rem; font-weight:600; color:#444; }
+    .fb-count { font-size:.78rem; color:#888; font-weight:400; }
+    .fb-body { overflow-y:auto; flex:1; padding:4px 0; }
+    .fb-empty { padding:20px; text-align:center; color:#aaa; font-size:.85rem; }
+    .fb-group { border-bottom:1px solid #f5f5f5; }
+    .fb-group:last-child { border-bottom:none; }
+    .fb-folder {
+      padding:6px 14px; display:flex; align-items:center; gap:6px;
+      font-size:.8rem; font-weight:600; color:#777;
+    }
+    .fb-item {
+      display:flex; align-items:center; gap:8px;
+      padding:4px 14px 4px 36px; cursor:pointer; border-radius:3px;
+      font-size:.84rem; color:#333; transition:background .1s;
+    }
+    .fb-item:hover { background:#f0f6f5; }
+    .fb-ext {
+      font-size:.62rem; font-weight:700; text-transform:uppercase;
+      padding:1px 4px; border-radius:3px; background:#e8e8e8; color:#777;
+    }
   </style>
 </head>
 <body>
@@ -311,6 +343,16 @@
             <span>seconds</span>
             <span id="autosaveStatus" class="save-status"></span>
             <span id="lastSaveTime" style="font-size:.78rem;color:#888;margin-left:8px;">Last saved: —</span>
+          </div>
+
+          <div id="fileBrowser" class="file-browser" style="display:none;">
+            <div class="fb-header">
+              <span class="fb-title">File Browser</span>
+              <span class="fb-count" id="fbCount"></span>
+            </div>
+            <div class="fb-body" id="fbBody">
+              <div class="fb-empty">Select a repository to browse CSV, Excel, and text files</div>
+            </div>
           </div>
 
           <div class="docs-summary">
@@ -478,6 +520,7 @@
             repoSelect.value = savedRepo;
             currentRepo = JSON.parse(savedRepo);
             await refreshFileList();
+            await loadRepoFileTree();
             const savedFilePath = localStorage.getItem(STORE_FILE_PATH);
             if (savedFilePath && [...fileSelect.options].some(opt => opt.value === savedFilePath)) {
               fileSelect.value = savedFilePath;
@@ -488,6 +531,7 @@
       } catch (err) {
         setStatus(`Failed to load repositories: ${err.message}`, "bad");
         repoSelect.innerHTML = '<option value="">Unable to load repositories</option>';
+        document.getElementById("fileBrowser").style.display = "none";
       }
     }
 
@@ -1246,11 +1290,179 @@
       }
     }
 
+    // ── File Browser ──────────────────────────────────────────────────
+
+    async function getDefaultBranch() {
+      try {
+        const repoData = await ghJSON(`https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}`);
+        return repoData.default_branch;
+      } catch {
+        return "main";
+      }
+    }
+
+    async function loadRepoFileTree() {
+      const fileBrowser = document.getElementById("fileBrowser");
+      const fbBody = document.getElementById("fbBody");
+
+      if (!currentRepo) {
+        fileBrowser.style.display = "none";
+        return;
+      }
+
+      fileBrowser.style.display = "flex";
+      fbBody.innerHTML = '<div class="fb-empty">Scanning repository...</div>';
+
+      try {
+        const branch = await getDefaultBranch();
+        const treeData = await ghJSON(`https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/git/trees/${branch}?recursive=1`);
+
+        const allowedExt = /\.(csv|xlsx?|txt)$/i;
+        const files = (treeData.tree || []).filter(item =>
+          item.type === "blob" && allowedExt.test(item.path)
+        );
+
+        const groups = {};
+        files.forEach(item => {
+          const parts = item.path.split("/");
+          const name = parts.pop();
+          const dir = parts.join("/") || "/";
+          if (!groups[dir]) groups[dir] = [];
+          groups[dir].push({ name, path: item.path, sha: item.sha });
+        });
+
+        const sortedDirs = Object.keys(groups).sort((a, b) => {
+          if (a === "/") return -1;
+          if (b === "/") return 1;
+          return a.localeCompare(b);
+        });
+
+        renderFileBrowser(groups, sortedDirs, files.length);
+      } catch (err) {
+        fbBody.innerHTML = `<div class="fb-empty" style="color:#c33;">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderFileBrowser(groups, sortedDirs, totalCount) {
+      const fbBody = document.getElementById("fbBody");
+      document.getElementById("fbCount").textContent = totalCount ? `${totalCount} file(s)` : "";
+
+      if (!totalCount) {
+        fbBody.innerHTML = '<div class="fb-empty">No CSV, Excel, or text files found in this repository.</div>';
+        return;
+      }
+
+      fbBody.innerHTML = "";
+
+      sortedDirs.forEach(dir => {
+        const files = groups[dir].sort((a, b) => a.name.localeCompare(b.name));
+
+        const group = document.createElement("div");
+        group.className = "fb-group";
+
+        const folder = document.createElement("div");
+        folder.className = "fb-folder";
+        folder.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${escapeHtml(dir === "/" ? "(root)" : dir)}`;
+        group.appendChild(folder);
+
+        files.forEach(file => {
+          const ext = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "";
+          const item = document.createElement("div");
+          item.className = "fb-item";
+          item.dataset.path = file.path;
+          item.dataset.ext = ext;
+          item.innerHTML = `<span class="fb-ext">${ext}</span> ${escapeHtml(file.name)}`;
+          item.addEventListener("click", () => loadFileFromBrowser(file.path, ext));
+          group.appendChild(item);
+        });
+
+        fbBody.appendChild(group);
+      });
+    }
+
+    async function loadFileFromBrowser(filePath, ext) {
+      clearStatus();
+      setStatus(`Loading ${filePath}...`, "info");
+
+      try {
+        const data = await ghJSON(`https://api.github.com/repos/${currentRepo.owner}/${currentRepo.name}/contents/${encodePath(filePath)}`);
+        if (Array.isArray(data)) throw new Error("Path is a folder.");
+
+        if (ext === "csv") {
+          const parsed = parseCSV(decodeBase64Unicode(data.content || ""));
+          const colorColIdx = parsed.headers.indexOf("_row_color");
+          if (colorColIdx !== -1) {
+            csvRowColors = parsed.rows.map(row => row[colorColIdx] || "");
+            parsed.headers.splice(colorColIdx, 1);
+            parsed.rows.forEach(row => row.splice(colorColIdx, 1));
+          } else {
+            csvRowColors = parsed.rows.map(() => "");
+          }
+          csvHeaders = parsed.headers;
+          csvRows = parsed.rows;
+          currentSha = data.sha || null;
+          fileNameInput.value = filePath.split("/").pop().replace(/\.csv$/i, "");
+          renderGrid();
+          updateSummary(`Loaded ${data.name}`);
+          savePrefs();
+          saveCSVData();
+          setStatus(`Loaded ${data.name}`, "ok");
+        } else if (ext === "txt") {
+          const text = decodeBase64Unicode(data.content || "");
+          showTextViewer(text, filePath);
+          setStatus(`Viewing ${filePath.split("/").pop()}`, "info");
+          updateSummary();
+        } else if (ext === "xlsx" || ext === "xls") {
+          if (typeof XLSX === "undefined") {
+            setStatus("Excel parser (SheetJS) not loaded. Please refresh the page.", "bad");
+            return;
+          }
+          const binary = atob((data.content || "").replace(/\n/g, ""));
+          const workbook = XLSX.read(binary, { type: "binary" });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          if (!json.length) throw new Error("Sheet is empty.");
+
+          csvHeaders = json[0].map((cell, idx) => String(cell ?? "") || `Column ${idx + 1}`);
+          csvRows = json.slice(1).map(row => {
+            const cols = [];
+            for (let i = 0; i < csvHeaders.length; i++) cols.push(String(row[i] ?? ""));
+            return cols;
+          });
+          csvRowColors = csvRows.map(() => "");
+          currentSha = data.sha || null;
+          fileNameInput.value = filePath.split("/").pop().replace(/\.(xlsx?)$/i, "");
+          renderGrid();
+          updateSummary(`Loaded Excel: ${data.name}`);
+          savePrefs();
+          saveCSVData();
+          setStatus(`Loaded ${data.name}`, "ok");
+        }
+      } catch (err) {
+        setStatus(`Failed to load: ${err.message}`, "bad");
+      }
+    }
+
+    function showTextViewer(text, filePath) {
+      const container = document.createElement("div");
+      container.id = "textViewer";
+
+      const pre = document.createElement("pre");
+      pre.style.cssText = "margin:0; padding:14px; font-family:monospace; font-size:.85rem; line-height:1.6; white-space:pre-wrap; word-break:break-word; color:#222; background:#fff;";
+      pre.textContent = text;
+      container.appendChild(pre);
+
+      gridScroll.innerHTML = "";
+      gridScroll.appendChild(container);
+    }
+
     repoSelect.addEventListener("change", async () => {
       currentRepo = repoSelect.value ? JSON.parse(repoSelect.value) : null;
       currentSha = null;
       savePrefs();
       await refreshFileList();
+      await loadRepoFileTree();
       updateSummary();
     });
 
@@ -1266,7 +1478,10 @@
       updateSummary();
     });
 
-    document.getElementById("refreshFilesBtn").addEventListener("click", refreshFileList);
+    document.getElementById("refreshFilesBtn").addEventListener("click", async () => {
+      await refreshFileList();
+      if (currentRepo) await loadRepoFileTree();
+    });
     document.getElementById("loadBtn").addEventListener("click", loadSelectedFile);
     document.getElementById("newDocBtn").addEventListener("click", () => {
       currentSha = null;
